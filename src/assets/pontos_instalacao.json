@@ -1,0 +1,362 @@
+[
+    {
+        "rua1": "Rua das Ac\u00e1cias",
+        "rua2": "Rua das Imbuias",
+        "latitude": -22.7556217,
+        "longitude": -47.3418358,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Ac\u00e1cias",
+        "rua2": "Rua dos Cedros",
+        "latitude": -22.8019034,
+        "longitude": -47.3067964,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Ac\u00e1cias",
+        "rua2": "Rua das Oliveiras",
+        "latitude": -22.787605,
+        "longitude": -47.2813927,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Ac\u00e1cias",
+        "rua2": "Rua dos Jacarand\u00e1s",
+        "latitude": -22.7527832,
+        "longitude": -47.3384858,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Ac\u00e1cias",
+        "rua2": "Rua das Figueiras",
+        "latitude": -22.8036551,
+        "longitude": -47.310085,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Ac\u00e1cias",
+        "rua2": "Rua dos Pinheiros",
+        "latitude": -22.7993689,
+        "longitude": -47.3109404,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Ac\u00e1cias",
+        "rua2": "Rua dos Eucaliptos",
+        "latitude": -22.8008934,
+        "longitude": -47.3154336,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Ac\u00e1cias",
+        "rua2": "Avenida S\u00e3o Gon\u00e7alo",
+        "latitude": -22.8068768,
+        "longitude": -47.3039109,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Ac\u00e1cias",
+        "rua2": "Rua das Paineiras",
+        "latitude": -22.7537007,
+        "longitude": -47.3395563,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Imbuias",
+        "rua2": "Rua dos Cedros",
+        "latitude": -22.8025318,
+        "longitude": -47.3111002,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Imbuias",
+        "rua2": "Rua das Oliveiras",
+        "latitude": -22.8025318,
+        "longitude": -47.3111002,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Imbuias",
+        "rua2": "Rua dos Jacarand\u00e1s",
+        "latitude": -22.8025318,
+        "longitude": -47.3111002,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Imbuias",
+        "rua2": "Rua das Figueiras",
+        "latitude": -22.756124,
+        "longitude": -47.341355,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Imbuias",
+        "rua2": "Rua dos Pinheiros",
+        "latitude": -22.7576262,
+        "longitude": -47.33986059999999,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Imbuias",
+        "rua2": "Rua dos Eucaliptos",
+        "latitude": -22.8025318,
+        "longitude": -47.3111002,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Imbuias",
+        "rua2": "Avenida S\u00e3o Gon\u00e7alo",
+        "latitude": -22.8048883,
+        "longitude": -47.3127234,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Imbuias",
+        "rua2": "Rua das Paineiras",
+        "latitude": -22.8025318,
+        "longitude": -47.3111002,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Cedros",
+        "rua2": "Rua das Oliveiras",
+        "latitude": -22.8019034,
+        "longitude": -47.3067964,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Cedros",
+        "rua2": "Rua dos Jacarand\u00e1s",
+        "latitude": -22.7997434,
+        "longitude": -47.30739,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Cedros",
+        "rua2": "Rua das Figueiras",
+        "latitude": -22.8019034,
+        "longitude": -47.3067964,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Cedros",
+        "rua2": "Rua dos Pinheiros",
+        "latitude": -22.8019034,
+        "longitude": -47.3067964,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Cedros",
+        "rua2": "Rua dos Eucaliptos",
+        "latitude": -22.8019034,
+        "longitude": -47.3067964,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Cedros",
+        "rua2": "Avenida S\u00e3o Gon\u00e7alo",
+        "latitude": -22.8019034,
+        "longitude": -47.3067964,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Cedros",
+        "rua2": "Rua das Paineiras",
+        "latitude": -22.752233,
+        "longitude": -47.340985,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Oliveiras",
+        "rua2": "Rua dos Jacarand\u00e1s",
+        "latitude": -22.7996283,
+        "longitude": -47.3069115,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Oliveiras",
+        "rua2": "Rua das Figueiras",
+        "latitude": -22.8036551,
+        "longitude": -47.310085,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Oliveiras",
+        "rua2": "Rua dos Pinheiros",
+        "latitude": -22.7993689,
+        "longitude": -47.3109404,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Oliveiras",
+        "rua2": "Rua dos Eucaliptos",
+        "latitude": -22.8008934,
+        "longitude": -47.3154336,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Oliveiras",
+        "rua2": "Avenida S\u00e3o Gon\u00e7alo",
+        "latitude": -22.8068768,
+        "longitude": -47.3039109,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Oliveiras",
+        "rua2": "Rua das Paineiras",
+        "latitude": -22.8020361,
+        "longitude": -47.3119459,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Jacarand\u00e1s",
+        "rua2": "Rua das Figueiras",
+        "latitude": -23.4193037,
+        "longitude": -46.2941367,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Jacarand\u00e1s",
+        "rua2": "Rua dos Pinheiros",
+        "latitude": -22.7527832,
+        "longitude": -47.3384858,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Jacarand\u00e1s",
+        "rua2": "Rua dos Eucaliptos",
+        "latitude": -22.7996283,
+        "longitude": -47.3069115,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Jacarand\u00e1s",
+        "rua2": "Avenida S\u00e3o Gon\u00e7alo",
+        "latitude": -22.7996283,
+        "longitude": -47.3069115,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Jacarand\u00e1s",
+        "rua2": "Rua das Paineiras",
+        "latitude": -22.7996283,
+        "longitude": -47.3069115,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Figueiras",
+        "rua2": "Rua dos Pinheiros",
+        "latitude": -22.8036551,
+        "longitude": -47.310085,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Figueiras",
+        "rua2": "Rua dos Eucaliptos",
+        "latitude": -22.8036551,
+        "longitude": -47.310085,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Figueiras",
+        "rua2": "Avenida S\u00e3o Gon\u00e7alo",
+        "latitude": -22.8054372,
+        "longitude": -47.3113323,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua das Figueiras",
+        "rua2": "Rua das Paineiras",
+        "latitude": -22.7541895,
+        "longitude": -47.33906770000001,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Pinheiros",
+        "rua2": "Rua dos Eucaliptos",
+        "latitude": -22.7923895,
+        "longitude": -47.2786533,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Pinheiros",
+        "rua2": "Avenida S\u00e3o Gon\u00e7alo",
+        "latitude": -22.8068768,
+        "longitude": -47.3039109,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Pinheiros",
+        "rua2": "Rua das Paineiras",
+        "latitude": -22.7556785,
+        "longitude": -47.3375528,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Eucaliptos",
+        "rua2": "Avenida S\u00e3o Gon\u00e7alo",
+        "latitude": -22.8068768,
+        "longitude": -47.3039109,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Rua dos Eucaliptos",
+        "rua2": "Rua das Paineiras",
+        "latitude": -22.8008934,
+        "longitude": -47.3154336,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    },
+    {
+        "rua1": "Avenida S\u00e3o Gon\u00e7alo",
+        "rua2": "Rua das Paineiras",
+        "latitude": -22.8045075,
+        "longitude": -47.31368150000001,
+        "status": "Dispon\u00edvel",
+        "tipo_regra": "Padr\u00e3o"
+    }
+]
