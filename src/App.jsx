@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
-import HomePage from './pages/HomePage'
-import LoginPage from './pages/LoginPage'
-import AdminPage from './pages/AdminPage'
+import HomePage from './pages/HomePage.jsx';
+import LoginPage from './pages/loginPage.jsx';
+import AdminPage from './pages/AdminPage.jsx';
 
 function App() {
   // Este componente agora controla qual página é renderizada
