@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabase';
 
 // Este componente vai "embrulhar" as páginas que queremos proteger.
 // A propriedade 'children' representa a página que ele está a proteger (ex: AdminPage).
