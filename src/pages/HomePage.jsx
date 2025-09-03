@@ -1,13 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api'
+import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MapPin, Clock, Eye, Phone, Mail, User, ShoppingCart, Trash2 } from 'lucide-react'
-import { supabase } from '../lib/supabaseClient'
+import { MapPin, Phone, Mail, User, ShoppingCart, Trash2 } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { PontoInfoWindow } from '../components/PontoInfoWindow';
+import { getStatusBadge } from '../lib/utils';
 import '../App.css'
 
 const mapContainerStyle = {
@@ -29,85 +29,19 @@ const mapOptions = {
 }
 
 const markerIcons = {
-  available: {
+  disponivel: {
     url: 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#22c55e"><circle cx="12" cy="12" r="10" stroke="white" stroke-width="2"/></svg>`),
     scaledSize: { width: 32, height: 32 }
   },
-  reserved: {
+  reservado: {
     url: 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#eab308"><circle cx="12" cy="12" r="10" stroke="white" stroke-width="2"/></svg>`),
     scaledSize: { width: 32, height: 32 }
   },
-  sold: {
+  vendido: {
     url: 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#ef4444"><circle cx="12" cy="12" r="10" stroke="white" stroke-width="2"/></svg>`),
     scaledSize: { width: 32, height: 32 }
   }
 }
-
-const getStatusBadge = (status) => {
-  const statusConfig = {
-    available: { label: 'Disponível', className: 'bg-green-500 hover:bg-green-600' },
-    reserved: { label: 'Reservado', className: 'bg-yellow-500 hover:bg-yellow-600' },
-    sold: { label: 'Vendido', className: 'bg-red-500 hover:bg-red-600' }
-  };
-  return statusConfig[status] || statusConfig.available;
-};
-
-function PontoInfoWindow({ ponto, onAddToCart, onClose }) {
-  const [periodo, setPeriodo] = useState("2");
-
-  const handleAddToCartClick = () => {
-    onAddToCart(ponto, parseInt(periodo));
-  };
-
-  return (
-    <InfoWindow position={{ lat: ponto.lat, lng: ponto.lng }} onCloseClick={onClose}>
-      <div className="p-2 max-w-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-lg">{ponto.endereco}</h3>
-          <Badge className={`${getStatusBadge(ponto.status).className} text-white`}>{getStatusBadge(ponto.status).label}</Badge>
-        </div>
-        <div className="space-y-2 mb-4">
-          <p className="text-sm"><strong>Descrição:</strong> {ponto.descricao}</p>
-        </div>
-        {ponto.status === 'available' && (
-          <div className="space-y-4">
-            <div>
-              <Label className="font-semibold">Período de Veiculação:</Label>
-              <RadioGroup defaultValue="2" onValueChange={setPeriodo} className="mt-2">
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="2" id={`p${ponto.id}-2y`} />
-                  <Label htmlFor={`p${ponto.id}-2y`}>2 Anos - R$ {ponto.price_2y?.toFixed(2) || 'N/A'}</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="3" id={`p${ponto.id}-3y`} />
-                  <Label htmlFor={`p${ponto.id}-3y`}>3 Anos - R$ {ponto.price_3y?.toFixed(2) || 'N/A'}</Label>
-                </div>
-              </RadioGroup>
-            </div>
-            <div className="space-y-2">
-              <Button onClick={handleAddToCartClick} className="w-full bg-green-600 hover:bg-green-700">
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                Adicionar ao Carrinho
-              </Button>
-              <Button variant="outline" size="sm" className="w-full" onClick={() => {
-                const streetViewUrl = `https://www.google.com/maps?q&layer=c&cbll=${ponto.lat},${ponto.lng}`;
-                window.open(streetViewUrl, '_blank');
-              }}><Eye className="h-4 w-4 mr-2" />Ver Street View</Button>
-            </div>
-          </div>
-        )}
-        {ponto.status === 'reserved' && (<div className="text-center"><p className="text-sm text-yellow-600 mb-2"><Clock className="h-4 w-4 inline mr-1" />Reservado</p></div>)}
-{ponto.status === 'sold' && (
-  <div className="text-center">
-    <p className="text-sm text-red-600 mb-2">
-  Contratado até: {ponto.sold_until ? new Date(ponto.sold_until).toLocaleDateString('pt-BR') : 'Indisponível'}
-</p>
-  </div>
-)}      </div>
-    </InfoWindow>
-  );
-}
-
 
 function HomePage() {
   const [selectedMarker, setSelectedMarker] = useState(null)
@@ -125,7 +59,7 @@ function HomePage() {
   useEffect(() => {
     async function getInitialData() {
       const [pointsResponse, tagsResponse, pointTagsResponse] = await Promise.all([
-        supabase.from('points').select('*'),
+        supabase.from('pontos').select('*'),
         supabase.from('tags').select('*').order('name', { ascending: true }),
         supabase.from('point_tags').select('*')
       ]);
@@ -138,8 +72,8 @@ function HomePage() {
         const pontosFormatados = pontosValidos.map(p => ({
           ...p,
           lat: parseFloat(p.latitude),
-          lng: parseFloat(p.longitude),
-          endereco: p.name,
+          lng: parseFloat(p.longitude), // Corrigido para usar a coluna correta
+          endereco: p.rua_principal, // Corrigido para usar a coluna correta
           descricao: p.description
         }));
         setPontos(pontosFormatados);
@@ -158,7 +92,7 @@ function HomePage() {
     if (filterTagId === 'all') {
       return true;
     }
-    return pointTags.some(pt => pt.point_id === ponto.id && pt.tag_id === filterTagId);
+    return pointTags.some(pt => pt.point_id === ponto.id && pt.tag_id === parseInt(filterTagId, 10));
   });
   
   const onLoad = useCallback((map) => {
@@ -236,6 +170,7 @@ function HomePage() {
       order_id: orderData.id,
       point_id: ponto.id,
       price: ponto.preco,
+      periodo_anos: ponto.periodo, // Adiciona o período ao item do pedido
     }));
 
     const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
@@ -248,8 +183,8 @@ function HomePage() {
 
     const pontosIds = carrinho.map(p => p.id);
     const { error: updateError } = await supabase
-      .from('points')
-      .update({ status: 'reserved' })
+      .from('pontos')
+      .update({ status: 'reservado' })
       .in('id', pontosIds);
     
     if (updateError) {
@@ -258,7 +193,7 @@ function HomePage() {
       return;
     }
     
-    setPontos(pontos.map(p => pontosIds.includes(p.id) ? { ...p, status: 'reserved' } : p));
+    setPontos(pontos.map(p => pontosIds.includes(p.id) ? { ...p, status: 'reservado' } : p));
     setShowReserveModal(false);
     setCarrinho([]);
     setReserveData({ nome: '', email: '', telefone: '' });
@@ -267,9 +202,9 @@ function HomePage() {
   
   const totalCarrinho = carrinho.reduce((total, item) => total + (item.preco || 0), 0);
   
-  const totalPontosDisponiveis = pontos.filter(p => p.status === 'available').length;
-  const totalPontosReservados = pontos.filter(p => p.status === 'reserved').length;
-  const totalPontosVendidos = pontos.filter(p => p.status === 'sold').length;
+  const totalPontosDisponiveis = pontos.filter(p => p.status === 'disponivel').length;
+  const totalPontosReservados = pontos.filter(p => p.status === 'reservado').length;
+  const totalPontosVendidos = pontos.filter(p => p.status === 'vendido').length;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -294,9 +229,9 @@ function HomePage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between"><span className="text-sm">Total de pontos:</span><span className="font-semibold">{displayedPontos.length}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-green-500 rounded-full"></div>Disponíveis:</span><span className="font-semibold text-green-600">{displayedPontos.filter(p => p.status === 'available').length}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-yellow-500 rounded-full"></div>Reservados:</span><span className="font-semibold text-yellow-600">{displayedPontos.filter(p => p.status === 'reserved').length}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-red-500 rounded-full"></div>Vendidos:</span><span className="font-semibold text-red-600">{displayedPontos.filter(p => p.status === 'sold').length}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-green-500 rounded-full"></div>Disponíveis:</span><span className="font-semibold text-green-600">{displayedPontos.filter(p => p.status === 'disponivel').length}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-yellow-500 rounded-full"></div>Reservados:</span><span className="font-semibold text-yellow-600">{displayedPontos.filter(p => p.status === 'reservado').length}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-red-500 rounded-full"></div>Vendidos:</span><span className="font-semibold text-red-600">{displayedPontos.filter(p => p.status === 'vendido').length}</span></div>
                 </div>
                 <div className="pt-4 border-t">
                     <Label className="font-semibold">Filtrar por característica:</Label>
@@ -391,4 +326,3 @@ function HomePage() {
 }
 
 export default HomePage
-
