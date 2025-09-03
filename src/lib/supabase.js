@@ -1,7 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://kugysamxzumqgxzinazds.supabase.co'
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1Z3lzYW14enVtcWd4aW5hemRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2NDMwNDMsImV4cCI6MjA3MTIxOTA0M30.G2ckhkGvTPX1akyRdCHkIsN6WpswmNwidyHCYo80dWg'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+// Garante que a aplicação falhe durante o build ou no início se as variáveis de ambiente não estiverem definidas.
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Variáveis de ambiente do Supabase (VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY) não estão definidas.");
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
