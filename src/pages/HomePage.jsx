@@ -1,161 +1,111 @@
-import { useState, useEffect, useCallback } from 'react';
-import { GoogleMap, useJsApiLoader, MarkerF, InfoWindow } from '@react-google-maps/api';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { PontoInfoWindow } from '@/components/PontoInfoWindow'; // CORREÇÃO APLICADA AQUI
-import { ReservationForm } from '@/components/ReservationForm';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { GoogleMap, useLoadScript, Marker } from '@react-google-maps/api';
 import { getPontos } from '../lib/supabase';
-import { Loader2 } from 'lucide-react';
+import { PontoInfoWindow } from '@/components/PontoInfoWindow'; // Assumindo que este componente existe
+import { Header } from '@/components/Header'; // Assumindo um componente de cabeçalho
 
 const containerStyle = {
-  width: '100vw',
-  height: '100vh'
-};
-
-const center = {
-  lat: -22.786092,
-  lng: -47.295678
+  width: '100%',
+  height: '100vh',
 };
 
 const mapOptions = {
   disableDefaultUI: true,
   zoomControl: true,
+  streetViewControl: true,
+  mapTypeControl: false,
+  fullscreenControl: false,
 };
 
 function HomePage() {
   const [pontos, setPontos] = useState([]);
   const [selectedPonto, setSelectedPonto] = useState(null);
-  const [cartItems, setCartItems] = useState([]);
-  const [isReservationModalOpen, setReservationModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+  const libraries = useMemo(() => ['maps'], []);
+  const { isLoaded, loadError } = useLoadScript({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries,
   });
 
-  const fetchPontos = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await getPontos();
-      setPontos(data);
-    } catch (error) {
-      console.error("Falha ao buscar pontos:", error);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    const fetchPontos = async () => {
+      try {
+        setLoading(true);
+        const data = await getPontos();
+        setPontos(data);
+      } catch (err) {
+        console.error('Erro ao carregar os pontos:', err);
+        setError('Não foi possível carregar os dados do mapa.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPontos();
   }, []);
 
-  useEffect(() => {
-    fetchPontos();
-  }, [fetchPontos]);
+  const center = useMemo(() => ({
+    lat: -22.7799, // Coordenadas aproximadas de Nova Odessa
+    lng: -47.2946,
+  }), []);
 
-  const handleAddToCart = (ponto, periodo, price) => {
-    const newItem = { ponto, periodo, price, id: `${ponto.id}-${periodo}` };
-    if (!cartItems.some(item => item.id === newItem.id)) {
-      setCartItems(prevItems => [...prevItems, newItem]);
-    }
+  const handleMarkerClick = useCallback((ponto) => {
+    setSelectedPonto(ponto);
+  }, []);
+
+  const handleCloseInfoWindow = useCallback(() => {
     setSelectedPonto(null);
+  }, []);
+
+  const getMarkerIcon = (status) => {
+    const color = {
+      disponivel: 'green',
+      reservado: 'yellow',
+      vendido: 'red',
+    }[status] || 'blue';
+
+    return {
+      path: window.google.maps.SymbolPath.CIRCLE,
+      fillColor: color,
+      fillOpacity: 0.9,
+      scale: 8,
+      strokeColor: 'white',
+      strokeWeight: 2,
+    };
   };
 
-  const handleRemoveFromCart = (itemId) => {
-    setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
-  };
-
-  const handleReservationSuccess = () => {
-    setCartItems([]);
-    fetchPontos(); // Recarrega os pontos para mostrar o status 'reservado'
-  };
-
-  const totalAmount = cartItems.reduce((sum, item) => sum + item.price, 0);
-
-  if (loadError) {
-    return <div className="flex items-center justify-center h-screen">Erro ao carregar o mapa.</div>;
-  }
-
-  if (!isLoaded || loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-12 w-12 animate-spin" />
-        <p className="ml-4 text-lg">Carregando mapa e pontos...</p>
-      </div>
-    );
-  }
+  if (loadError) return <div>Erro ao carregar o mapa. Verifique a chave da API do Google Maps.</div>;
+  if (!isLoaded || loading) return <div>A carregar mapa...</div>;
+  if (error) return <div>{error}</div>;
 
   return (
     <div>
+      <Header />
       <GoogleMap
         mapContainerStyle={containerStyle}
         center={center}
-        zoom={14}
+        zoom={15}
         options={mapOptions}
       >
         {pontos.map((ponto) => (
-          <MarkerF
+          <Marker
             key={ponto.id}
             position={{ lat: ponto.latitude, lng: ponto.longitude }}
-            onClick={() => setSelectedPonto(ponto)}
-            icon={{
-              url: ponto.status === 'disponivel' ? '/marker-green.png' : '/marker-red.png',
-              scaledSize: new window.google.maps.Size(35, 35)
-            }}
+            onClick={() => handleMarkerClick(ponto)}
+            icon={getMarkerIcon(ponto.status)}
+            title={`${ponto.rua_principal} com ${ponto.rua_cruzamento}`}
           />
         ))}
 
         {selectedPonto && (
-          <InfoWindow
-            position={{ lat: selectedPonto.latitude, lng: selectedPonto.longitude }}
-            onCloseClick={() => setSelectedPonto(null)}
-          >
-            <PontoInfoWindow
-              ponto={selectedPonto}
-              onAddToCart={handleAddToCart}
-              cartItems={cartItems}
-              onRemoveFromCart={handleRemoveFromCart}
-            />
-          </InfoWindow>
+          <PontoInfoWindow
+            ponto={selectedPonto}
+            onClose={handleCloseInfoWindow}
+          />
         )}
       </GoogleMap>
-
-      {cartItems.length > 0 && (
-        <div className="fixed bottom-4 right-4 z-10 bg-white p-4 rounded-lg shadow-lg max-w-sm w-full">
-          <h3 className="text-lg font-bold mb-2">Resumo da Reserva</h3>
-          <ul className="space-y-2 mb-4 max-h-40 overflow-y-auto">
-            {cartItems.map(item => (
-              <li key={item.id} className="flex justify-between items-center text-sm">
-                <span>Ponto #{item.ponto.numero_ponto} ({item.periodo} {item.periodo > 1 ? 'anos' : 'ano'})</span>
-                <div className="flex items-center gap-2">
-                  <span>R$ {item.price.toFixed(2)}</span>
-                  <Button variant="destructive" size="icon" className="h-6 w-6" onClick={() => handleRemoveFromCart(item.id)}>X</Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-          <div className="border-t pt-2 flex justify-between items-center font-bold">
-            <span>Total:</span>
-            <span>R$ {totalAmount.toFixed(2)}</span>
-          </div>
-          <Button onClick={() => setReservationModalOpen(true)} className="w-full mt-4">
-            Finalizar Reserva
-          </Button>
-        </div>
-      )}
-
-      <Dialog open={isReservationModalOpen} onOpenChange={setReservationModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Finalizar Reserva</DialogTitle>
-            <DialogDescription>
-              Preencha seus dados para garantir a reserva dos pontos selecionados.
-            </DialogDescription>
-          </DialogHeader>
-          <ReservationForm
-            cartItems={cartItems}
-            onClose={() => setReservationModalOpen(false)}
-            onReservationSuccess={handleReservationSuccess}
-          />
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
