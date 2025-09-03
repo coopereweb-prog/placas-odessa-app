@@ -89,7 +89,7 @@ function AdminPage() {
       if (updateError) throw updateError;
 
       alert('Comprovante enviado com sucesso!');
-      fetchOrders();
+      fetchOrders(activeTab);
     } catch (error) {
       console.error("Erro no upload do comprovante:", error);
       alert(`Falha ao enviar comprovante: ${error.message}`);

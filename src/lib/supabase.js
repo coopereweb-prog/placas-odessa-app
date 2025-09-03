@@ -45,75 +45,32 @@ export const updatePontoStatus = async (pontoId, status, dadosCliente = null) =>
   return data[0]
 }
 
-// Funções para gerenciar reservas
-export const createReserva = async (pontoId, dadosCliente) => {
-  const { data, error } = await supabase
-    .from('reservas')
-    .insert([
-      {
-        ponto_id: pontoId,
-        nome: dadosCliente.nome,
-        email: dadosCliente.email,
-        telefone: dadosCliente.telefone,
-        status: 'ativa',
-        expira_em: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(), // 48 horas
-        created_at: new Date().toISOString()
-      }
-    ])
-    .select()
-  
-  if (error) {
-    console.error('Erro ao criar reserva:', error)
-    return null
-  }
-  
-  return data[0]
-}
+// Nova função para criar um pedido via Edge Function
+// Esta função substitui a antiga `createReserva` e lida com a criação do pedido,
+// itens do pedido e atualização do status do ponto de forma atômica no backend.
+export const createOrder = async (customerData, cartItems) => {
+  const totalAmount = cartItems.reduce((sum, item) => sum + item.price, 0);
+  const items = cartItems.map(item => ({
+    ponto_id: item.ponto.id,
+    periodo_anos: item.periodo,
+    price: item.price
+  }));
 
-export const getReservasExpiradas = async () => {
-  const { data, error } = await supabase
-    .from('reservas')
-    .select('*')
-    .eq('status', 'ativa')
-    .lt('expira_em', new Date().toISOString())
-  
-  if (error) {
-    console.error('Erro ao buscar reservas expiradas:', error)
-    return []
-  }
-  
-  return data
-}
+  const { data, error } = await supabase.functions.invoke('create-order', {
+    body: {
+      customerData, // { name, email, phone }
+      items,
+      totalAmount,
+    },
+  });
 
-export const expirarReserva = async (reservaId, pontoId) => {
-  // Atualiza a reserva como expirada
-  const { error: reservaError } = await supabase
-    .from('reservas')
-    .update({ status: 'expirada', updated_at: new Date().toISOString() })
-    .eq('id', reservaId)
-  
-  if (reservaError) {
-    console.error('Erro ao expirar reserva:', reservaError)
-    return false
+  if (error) {
+    console.error('Erro ao invocar a Edge Function create-order:', error);
+    // Lança o erro para que o componente que chamou possa tratá-lo
+    throw error;
   }
-  
-  // Volta o ponto para disponível
-  const { error: pontoError } = await supabase
-    .from('pontos')
-    .update({ 
-      status: 'disponivel', 
-      dados_cliente: null,
-      reservado_em: null,
-      updated_at: new Date().toISOString() 
-    })
-    .eq('id', pontoId)
-  
-  if (pontoError) {
-    console.error('Erro ao atualizar ponto:', pontoError)
-    return false
-  }
-  
-  return true
+
+  return data;
 }
 
 // Função para upload de imagens
@@ -137,4 +94,3 @@ export const getImagemUrl = (path) => {
   
   return data.publicUrl
 }
-
