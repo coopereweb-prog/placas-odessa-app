@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { GoogleMap, useLoadScript, Marker } from '@react-google-maps/api';
 import { getPontos } from '../lib/supabase';
-import { PontoInfoWindow } from '@/components/PontoInfoWindow'; // Assumindo que este componente existe
-import { Header } from '@/components/Header'; // Assumindo um componente de cabeçalho
+import { PontoInfoWindow } from '@/components/PontoInfoWindow.jsx';
+import { Header } from '@/components/Header.jsx';
 
 const containerStyle = {
   width: '100%',
