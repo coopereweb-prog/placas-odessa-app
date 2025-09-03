@@ -1,328 +1,163 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MapPin, Phone, Mail, User, ShoppingCart, Trash2 } from 'lucide-react'
-import { supabase } from '../lib/supabase'
-import { PontoInfoWindow } from '../components/PontoInfoWindow';
-import { getStatusBadge } from '../lib/utils';
-import '../App.css'
+import { useState, useEffect, useCallback } from 'react';
+import { GoogleMap, useJsApiLoader, MarkerF, InfoWindow } from '@react-google-maps/api';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { PontoInfoWindow } from '@/components/PontoInfoWindow'; // CORREÇÃO APLICADA AQUI
+import { ReservationForm } from '@/components/ReservationForm';
+import { getPontos } from '../lib/supabase';
+import { Loader2 } from 'lucide-react';
 
-const mapContainerStyle = {
-  width: '100%',
-  height: '600px'
-}
+const containerStyle = {
+  width: '100vw',
+  height: '100vh'
+};
 
 const center = {
-  lat: -22.7856,
-  lng: -47.2975
-}
+  lat: -22.786092,
+  lng: -47.295678
+};
 
 const mapOptions = {
-  disableDefaultUI: false,
+  disableDefaultUI: true,
   zoomControl: true,
-  streetViewControl: true,
-  mapTypeControl: true,
-  fullscreenControl: true,
-}
-
-const markerIcons = {
-  disponivel: {
-    url: 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#22c55e"><circle cx="12" cy="12" r="10" stroke="white" stroke-width="2"/></svg>`),
-    scaledSize: { width: 32, height: 32 }
-  },
-  reservado: {
-    url: 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#eab308"><circle cx="12" cy="12" r="10" stroke="white" stroke-width="2"/></svg>`),
-    scaledSize: { width: 32, height: 32 }
-  },
-  vendido: {
-    url: 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#ef4444"><circle cx="12" cy="12" r="10" stroke="white" stroke-width="2"/></svg>`),
-    scaledSize: { width: 32, height: 32 }
-  }
-}
+};
 
 function HomePage() {
-  const [selectedMarker, setSelectedMarker] = useState(null)
-  const [pontos, setPontos] = useState([])
-  const [showReserveModal, setShowReserveModal] = useState(false)
-  const [reserveData, setReserveData] = useState({ nome: '', email: '', telefone: '' })
-  const [carrinho, setCarrinho] = useState([])
-  
-  const [tags, setTags] = useState([]);
-  const [pointTags, setPointTags] = useState([]);
-  const [filterTagId, setFilterTagId] = useState('all');
-  
-  const mapRef = useRef(null);
+  const [pontos, setPontos] = useState([]);
+  const [selectedPonto, setSelectedPonto] = useState(null);
+  const [cartItems, setCartItems] = useState([]);
+  const [isReservationModalOpen, setReservationModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function getInitialData() {
-      const [pointsResponse, tagsResponse, pointTagsResponse] = await Promise.all([
-        supabase.from('pontos').select('*'),
-        supabase.from('tags').select('*').order('name', { ascending: true }),
-        supabase.from('point_tags').select('*')
-      ]);
-
-      if (pointsResponse.error) {
-        console.error("Erro ao buscar pontos do Supabase:", pointsResponse.error);
-        alert("Não foi possível carregar os pontos do mapa.");
-      } else {
-        const pontosValidos = pointsResponse.data.filter(p => p.latitude && p.longitude);
-        const pontosFormatados = pontosValidos.map(p => ({
-          ...p,
-          lat: parseFloat(p.latitude),
-          lng: parseFloat(p.longitude), // Corrigido para usar a coluna correta
-          endereco: p.rua_principal, // Corrigido para usar a coluna correta
-          descricao: p.description
-        }));
-        setPontos(pontosFormatados);
-      }
-      
-      if (tagsResponse.error) console.error("Erro ao buscar tags:", tagsResponse.error);
-      else setTags(tagsResponse.data);
-
-      if (pointTagsResponse.error) console.error("Erro ao buscar point_tags:", pointTagsResponse.error);
-      else setPointTags(pointTagsResponse.data);
-    }
-    getInitialData();
-  }, []);
-
-  const displayedPontos = pontos.filter(ponto => {
-    if (filterTagId === 'all') {
-      return true;
-    }
-    return pointTags.some(pt => pt.point_id === ponto.id && pt.tag_id === parseInt(filterTagId, 10));
+  const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY
   });
-  
-  const onLoad = useCallback((map) => {
-    mapRef.current = map;
-  }, []);
-  
-  useEffect(() => {
-    if (mapRef.current && displayedPontos.length > 0) {
-      const bounds = new window.google.maps.LatLngBounds();
-      displayedPontos.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
-      mapRef.current.fitBounds(bounds);
-      
-      const listener = window.google.maps.event.addListener(mapRef.current, "idle", function() {
-        if (mapRef.current.getZoom() > 17) mapRef.current.setZoom(17);
-        window.google.maps.event.removeListener(listener);
-      });
-    } else if (mapRef.current && displayedPontos.length === 0 && filterTagId !== 'all') {
-        mapRef.current.panTo(center);
-        mapRef.current.setZoom(15);
-    }
-  }, [displayedPontos, filterTagId]);
 
-  const handleMarkerClick = (ponto) => {
-    setSelectedMarker(ponto);
+  const fetchPontos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getPontos();
+      setPontos(data);
+    } catch (error) {
+      console.error("Falha ao buscar pontos:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPontos();
+  }, [fetchPontos]);
+
+  const handleAddToCart = (ponto, periodo, price) => {
+    const newItem = { ponto, periodo, price, id: `${ponto.id}-${periodo}` };
+    if (!cartItems.some(item => item.id === newItem.id)) {
+      setCartItems(prevItems => [...prevItems, newItem]);
+    }
+    setSelectedPonto(null);
   };
 
-  const handleAdicionarAoCarrinho = (ponto, periodo) => {
-    if (carrinho.find(item => item.id === ponto.id)) {
-      alert("Este ponto já está no seu carrinho.");
-      return;
-    }
-    const preco = periodo === 2 ? ponto.price_2y : ponto.price_3y;
-    setCarrinho([...carrinho, { ...ponto, periodo, preco }]);
-    setSelectedMarker(null);
-  }
-  
-  const handleRemoverDoCarrinho = (pontoId) => {
-    setCarrinho(carrinho.filter(item => item.id !== pontoId));
-  }
+  const handleRemoveFromCart = (itemId) => {
+    setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
+  };
 
-  const handleUpdatePeriodoCarrinho = (pontoId, novoPeriodo) => {
-    setCarrinho(carrinho.map(item => {
-      if (item.id === pontoId) {
-        const novoPreco = novoPeriodo === 2 ? item.price_2y : item.price_3y;
-        return { ...item, periodo: novoPeriodo, preco: novoPreco };
-      }
-      return item;
-    }));
+  const handleReservationSuccess = () => {
+    setCartItems([]);
+    fetchPontos(); // Recarrega os pontos para mostrar o status 'reservado'
+  };
+
+  const totalAmount = cartItems.reduce((sum, item) => sum + item.price, 0);
+
+  if (loadError) {
+    return <div className="flex items-center justify-center h-screen">Erro ao carregar o mapa.</div>;
   }
 
-  const handleReserveSubmit = async (e) => {
-    e.preventDefault();
-    if (carrinho.length === 0) return;
-
-    const totalAmount = carrinho.reduce((total, item) => total + (item.preco || 0), 0);
-    const { data: orderData, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        customer_name: reserveData.nome,
-        customer_email: reserveData.email,
-        customer_phone: reserveData.telefone,
-        total_amount: totalAmount,
-        status: 'pending',
-      })
-      .select()
-      .single();
-
-    if (orderError || !orderData) {
-      alert("Ocorreu um erro ao criar o seu pedido.");
-      console.error("Erro ao inserir order:", orderError);
-      return;
-    }
-
-    const orderItems = carrinho.map(ponto => ({
-      order_id: orderData.id,
-      point_id: ponto.id,
-      price: ponto.preco,
-      periodo_anos: ponto.periodo, // Adiciona o período ao item do pedido
-    }));
-
-    const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
-    
-    if (itemsError) {
-      alert("Ocorreu um erro ao salvar os itens do seu pedido.");
-      console.error("Erro ao inserir order_items:", itemsError);
-      return;
-    }
-
-    const pontosIds = carrinho.map(p => p.id);
-    const { error: updateError } = await supabase
-      .from('pontos')
-      .update({ status: 'reservado' })
-      .in('id', pontosIds);
-    
-    if (updateError) {
-      alert("Ocorreu um erro ao atualizar o status dos pontos.");
-      console.error("Erro ao atualizar pontos:", updateError);
-      return;
-    }
-    
-    setPontos(pontos.map(p => pontosIds.includes(p.id) ? { ...p, status: 'reservado' } : p));
-    setShowReserveModal(false);
-    setCarrinho([]);
-    setReserveData({ nome: '', email: '', telefone: '' });
-    alert('Pedido de reserva enviado com sucesso!');
+  if (!isLoaded || loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-12 w-12 animate-spin" />
+        <p className="ml-4 text-lg">Carregando mapa e pontos...</p>
+      </div>
+    );
   }
-  
-  const totalCarrinho = carrinho.reduce((total, item) => total + (item.preco || 0), 0);
-  
-  const totalPontosDisponiveis = pontos.filter(p => p.status === 'disponivel').length;
-  const totalPontosReservados = pontos.filter(p => p.status === 'reservado').length;
-  const totalPontosVendidos = pontos.filter(p => p.status === 'vendido').length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-md border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div><h1 className="text-3xl font-bold text-gray-800">Placas Nova Odessa</h1><p className="text-gray-500 mt-1">Sistema de Gestão de Placas de Logradouros</p></div>
-            <div className="flex items-center space-x-6">
-              <div className="text-center"><div className="text-2xl font-bold text-green-600">{totalPontosDisponiveis}</div><div className="text-sm text-gray-500">Disponíveis</div></div>
-              <div className="text-center"><div className="text-2xl font-bold text-yellow-600">{totalPontosReservados}</div><div className="text-sm text-gray-500">Reservados</div></div>
-              <div className="text-center"><div className="text-2xl font-bold text-red-600">{totalPontosVendidos}</div><div className="text-sm text-gray-500">Vendidos</div></div>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div>
+      <GoogleMap
+        mapContainerStyle={containerStyle}
+        center={center}
+        zoom={14}
+        options={mapOptions}
+      >
+        {pontos.map((ponto) => (
+          <MarkerF
+            key={ponto.id}
+            position={{ lat: ponto.latitude, lng: ponto.longitude }}
+            onClick={() => setSelectedPonto(ponto)}
+            icon={{
+              url: ponto.status === 'disponivel' ? '/marker-green.png' : '/marker-red.png',
+              scaledSize: new window.google.maps.Size(35, 35)
+            }}
+          />
+        ))}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          <div className="lg:col-span-1 space-y-8">
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5" />Bairro São Jorge</CardTitle><CardDescription>Prova de conceito do sistema de placas</CardDescription></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between"><span className="text-sm">Total de pontos:</span><span className="font-semibold">{displayedPontos.length}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-green-500 rounded-full"></div>Disponíveis:</span><span className="font-semibold text-green-600">{displayedPontos.filter(p => p.status === 'disponivel').length}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-yellow-500 rounded-full"></div>Reservados:</span><span className="font-semibold text-yellow-600">{displayedPontos.filter(p => p.status === 'reservado').length}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-red-500 rounded-full"></div>Vendidos:</span><span className="font-semibold text-red-600">{displayedPontos.filter(p => p.status === 'vendido').length}</span></div>
+        {selectedPonto && (
+          <InfoWindow
+            position={{ lat: selectedPonto.latitude, lng: selectedPonto.longitude }}
+            onCloseClick={() => setSelectedPonto(null)}
+          >
+            <PontoInfoWindow
+              ponto={selectedPonto}
+              onAddToCart={handleAddToCart}
+              cartItems={cartItems}
+              onRemoveFromCart={handleRemoveFromCart}
+            />
+          </InfoWindow>
+        )}
+      </GoogleMap>
+
+      {cartItems.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-10 bg-white p-4 rounded-lg shadow-lg max-w-sm w-full">
+          <h3 className="text-lg font-bold mb-2">Resumo da Reserva</h3>
+          <ul className="space-y-2 mb-4 max-h-40 overflow-y-auto">
+            {cartItems.map(item => (
+              <li key={item.id} className="flex justify-between items-center text-sm">
+                <span>Ponto #{item.ponto.numero_ponto} ({item.periodo} {item.periodo > 1 ? 'anos' : 'ano'})</span>
+                <div className="flex items-center gap-2">
+                  <span>R$ {item.price.toFixed(2)}</span>
+                  <Button variant="destructive" size="icon" className="h-6 w-6" onClick={() => handleRemoveFromCart(item.id)}>X</Button>
                 </div>
-                <div className="pt-4 border-t">
-                    <Label className="font-semibold">Filtrar por característica:</Label>
-                    <Select value={filterTagId} onValueChange={setFilterTagId}>
-                        <SelectTrigger className="w-full mt-2">
-                            <SelectValue placeholder="Selecionar..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Mostrar Todos os Pontos</SelectItem>
-                            {tags.map(tag => (
-                                <SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-5 w-5" />Carrinho de Reservas</CardTitle>
-                <CardDescription>{carrinho.length === 0 ? "Seu carrinho está vazio." : `Você tem ${carrinho.length} ponto(s) no carrinho.`}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {carrinho.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="max-h-60 overflow-y-auto space-y-3 pr-2">
-                      {carrinho.map(ponto => (
-                        <div key={ponto.id} className="flex items-start justify-between text-sm p-2 bg-gray-100 rounded-md">
-                          <div className="flex-1">
-                            <p className="font-medium">{ponto.endereco}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <select value={ponto.periodo} onChange={(e) => handleUpdatePeriodoCarrinho(ponto.id, parseInt(e.target.value))} className="text-xs border-gray-300 rounded-md">
-                                <option value="2">2 Anos</option>
-                                <option value="3">3 Anos</option>
-                              </select>
-                              <p className="font-semibold">R$ {ponto.preco?.toFixed(2)}</p>
-                            </div>
-                          </div>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => handleRemoverDoCarrinho(ponto.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="border-t pt-4 space-y-4">
-                      <div className="flex justify-between font-bold text-lg">
-                        <span>Total:</span>
-                        <span>R$ {totalCarrinho.toFixed(2)}</span>
-                      </div>
-                      <Button className="w-full" onClick={() => setShowReserveModal(true)}>Finalizar Pedido</Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              </li>
+            ))}
+          </ul>
+          <div className="border-t pt-2 flex justify-between items-center font-bold">
+            <span>Total:</span>
+            <span>R$ {totalAmount.toFixed(2)}</span>
           </div>
-
-          <div className="lg:col-span-3">
-            <Card>
-              <CardHeader><CardTitle>Mapa Interativo - Pontos de Instalação</CardTitle><CardDescription>Clique nos marcadores para ver detalhes e adicionar ao carrinho</CardDescription></CardHeader>
-              <CardContent>
-                <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
-                  <GoogleMap mapContainerStyle={mapContainerStyle} center={center} zoom={15} onLoad={onLoad} options={mapOptions}>
-                    {displayedPontos.map((ponto) => (
-                      <Marker key={ponto.id} position={{ lat: ponto.lat, lng: ponto.lng }} icon={markerIcons[ponto.status]} onClick={() => handleMarkerClick(ponto)} />
-                    ))}
-                    {selectedMarker && <PontoInfoWindow ponto={selectedMarker} onAddToCart={handleAdicionarAoCarrinho} onClose={() => setSelectedMarker(null)} />}
-                  </GoogleMap>
-                </LoadScript>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </main>
-
-      {showReserveModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md mx-4">
-            <CardHeader><CardTitle>Finalizar Reserva</CardTitle><CardDescription>Preencha seus dados para reservar {carrinho.length} ponto(s)</CardDescription></CardHeader>
-            <CardContent>
-              <form onSubmit={handleReserveSubmit} className="space-y-4">
-                <div><label className="block text-sm font-medium mb-1.5"><User className="h-4 w-4 inline mr-1" />Nome Completo</label><input type="text" required className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" value={reserveData.nome} onChange={(e) => setReserveData({...reserveData, nome: e.target.value})} placeholder="Seu nome completo" /></div>
-                <div><label className="block text-sm font-medium mb-1.5"><Mail className="h-4 w-4 inline mr-1" />E-mail</label><input type="email" required className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" value={reserveData.email} onChange={(e) => setReserveData({...reserveData, email: e.target.value})} placeholder="seu@email.com" /></div>
-                <div><label className="block text-sm font-medium mb-1.5"><Phone className="h-4 w-4 inline mr-1" />Telefone</label><input type="tel" required className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" value={reserveData.telefone} onChange={(e) => setReserveData({...reserveData, telefone: e.target.value})} placeholder="(00) 00000-0000" /></div>
-                <div className="flex gap-3 pt-4"><Button type="button" variant="outline" className="flex-1" onClick={() => setShowReserveModal(false)}>Cancelar</Button><Button type="submit" className="flex-1 bg-green-600 hover:bg-green-700">Confirmar Reserva</Button></div>
-              </form>
-            </CardContent>
-          </Card>
+          <Button onClick={() => setReservationModalOpen(true)} className="w-full mt-4">
+            Finalizar Reserva
+          </Button>
         </div>
       )}
+
+      <Dialog open={isReservationModalOpen} onOpenChange={setReservationModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Finalizar Reserva</DialogTitle>
+            <DialogDescription>
+              Preencha seus dados para garantir a reserva dos pontos selecionados.
+            </DialogDescription>
+          </DialogHeader>
+          <ReservationForm
+            cartItems={cartItems}
+            onClose={() => setReservationModalOpen(false)}
+            onReservationSuccess={handleReservationSuccess}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
-  )
+  );
 }
 
-export default HomePage
+export default HomePage;
