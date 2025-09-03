@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import HomePage from './pages/HomePage.jsx';
-import LoginPage from './pages/loginPage.jsx';
+import LoginPage from './pages/LoginPage.jsx'; // Esta é a importação correta e padronizada
 import AdminPage from './pages/AdminPage.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
