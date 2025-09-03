@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LogOut, PlusCircle, Edit, Trash2, Inbox } from 'lucide-react';
+
 
 const getStatusBadge = (status) => {
   const statusConfig = {
@@ -33,26 +34,29 @@ const formatDateForInput = (dateString) => {
   }
 };
 
+const parseCurrency = (value) => parseFloat(String(value || '0').replace(',', '.'));
+
 function AdminPage() {
   const [user, setUser] = useState(null);
   const [pontos, setPontos] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newPoint, setNewPoint] = useState({ name: '', latitude: '', longitude: '', description: '', price_2y: '', price_3y: '' });
-  const [editingPoint, setEditingPoint] = useState(null);
+  // State refatorado para o modal e formulário de ponto
+  const initialPointState = { name: '', latitude: '', longitude: '', description: '', price_2y: '', price_3y: '', status: 'available', sold_until: null };
+  const [activePoint, setActivePoint] = useState(null);
+
   const [tags, setTags] = useState([]);
   const [newTagName, setNewTagName] = useState('');
   const [selectedTags, setSelectedTags] = useState(new Set());
 
   const [filterTagId, setFilterTagId] = useState('all');
   const [pointTags, setPointTags] = useState([]);
-  
+
   const [orders, setOrders] = useState([]);
   const [orderStatusFilter, setOrderStatusFilter] = useState('pending');
 
-  const fetchInitialData = async () => {
+  const fetchInitialData = useCallback(async () => {
     setLoading(true);
     const { data: { user: currentUser } } = await supabase.auth.getUser();
     if (!currentUser) {
@@ -74,19 +78,19 @@ function AdminPage() {
 
     if (tagsResponse.error) console.error('Erro ao buscar tags:', tagsResponse.error);
     else setTags(tagsResponse.data);
-    
+
     if (pointTagsResponse.error) console.error('Erro ao buscar point_tags:', pointTagsResponse.error);
     else setPointTags(pointTagsResponse.data);
-    
+
     if (ordersResponse.error) console.error('Erro ao buscar orders:', ordersResponse.error);
     else setOrders(ordersResponse.data);
 
     setLoading(false);
-  };
+  }, [navigate]);
 
   useEffect(() => {
     fetchInitialData();
-  }, [navigate]);
+  }, [fetchInitialData]);
 
   const savePointTags = async (pointId, currentSelectedTags) => {
     const { error: deleteError } = await supabase.from('point_tags').delete().eq('point_id', pointId);
@@ -108,64 +112,78 @@ function AdminPage() {
 
   const handleAddPointSubmit = async (e) => {
     e.preventDefault();
-    const pointToInsert = { name: newPoint.name, latitude: parseFloat(String(newPoint.latitude).replace(',', '.')), longitude: parseFloat(String(newPoint.longitude).replace(',', '.')), description: newPoint.description, price_2y: parseFloat(String(newPoint.price_2y).replace(',', '.')), price_3y: parseFloat(String(newPoint.price_3y).replace(',', '.')), status: 'available' };
+    const pointToInsert = {
+      name: activePoint.name,
+      latitude: parseCurrency(activePoint.latitude),
+      longitude: parseCurrency(activePoint.longitude),
+      description: activePoint.description,
+      price_2y: parseCurrency(activePoint.price_2y),
+      price_3y: parseCurrency(activePoint.price_3y),
+      status: 'available'
+    };
     const { data, error } = await supabase.from('points').insert([pointToInsert]).select();
     if (error) {
       console.error('Erro ao adicionar novo ponto:', error);
       alert('Falha ao adicionar o ponto.');
     } else if (data) {
-      const newPointId = data[0].id;
-      await savePointTags(newPointId, selectedTags);
-      fetchInitialData();
+      const newPointData = data[0];
+      await savePointTags(newPointData.id, selectedTags);
+      
+      // Atualiza o estado local em vez de refazer o fetch de tudo
+      setPontos(prevPontos => [newPointData, ...prevPontos]);
+      const { data: updatedPointTags, error: ptError } = await supabase.from('point_tags').select('*');
+      if (ptError) console.error('Erro ao buscar point_tags:', ptError);
+      else setPointTags(updatedPointTags);
+
       closeModal();
     }
   };
 
   const handleUpdatePointSubmit = async (e) => {
     e.preventDefault();
-    if (!editingPoint) return;
+    if (!activePoint?.id) return;
     const pointToUpdate = { 
-      name: editingPoint.name, 
-      latitude: parseFloat(String(editingPoint.latitude).replace(',', '.')), 
-      longitude: parseFloat(String(editingPoint.longitude).replace(',', '.')), 
-      description: editingPoint.description, 
-      price_2y: parseFloat(String(editingPoint.price_2y).replace(',', '.')), 
-      price_3y: parseFloat(String(editingPoint.price_3y).replace(',', '.')),
-      status: editingPoint.status,
-      sold_until: editingPoint.status === 'sold' ? editingPoint.sold_until : null,
+      name: activePoint.name, 
+      latitude: parseCurrency(activePoint.latitude), 
+      longitude: parseCurrency(activePoint.longitude), 
+      description: activePoint.description, 
+      price_2y: parseCurrency(activePoint.price_2y), 
+      price_3y: parseCurrency(activePoint.price_3y),
+      status: activePoint.status,
+      sold_until: activePoint.status === 'sold' ? activePoint.sold_until : null,
     };
-    const { data, error } = await supabase.from('points').update(pointToUpdate).eq('id', editingPoint.id).select();
+    const { data, error } = await supabase.from('points').update(pointToUpdate).eq('id', activePoint.id).select();
 
     if (error) {
       console.error('Erro ao atualizar o ponto:', error);
       alert('Falha ao atualizar o ponto.');
     } else if (data) {
-      await savePointTags(editingPoint.id, selectedTags);
+      await savePointTags(activePoint.id, selectedTags);
 
-      if (editingPoint.status === 'sold') {
-        const orderToUpdate = orders.find(o => o.order_items.some(item => item.point_id === editingPoint.id));
+      if (activePoint.status === 'sold') {
+        const orderToUpdate = orders.find(o => o.order_items.some(item => item.point_id === activePoint.id));
         if (orderToUpdate) {
           await supabase.from('orders').update({ status: 'active' }).eq('id', orderToUpdate.id);
         }
       }
 
-      const updatedPoint = { ...data[0] };
-      setPontos(pontos.map(p => p.id === editingPoint.id ? updatedPoint : p));
-      fetchInitialData();
+      const updatedPoint = data[0];
+      setPontos(prevPontos => prevPontos.map(p => p.id === activePoint.id ? updatedPoint : p));
+      const { data: updatedPointTags, error: ptError } = await supabase.from('point_tags').select('*');
+      if (ptError) console.error('Erro ao buscar point_tags:', ptError);
+      else setPointTags(updatedPointTags);
+
       closeModal();
     }
   };
 
   const handleEditClick = async (ponto) => {
     const { data, error } = await supabase.from('point_tags').select('tag_id').eq('point_id', ponto.id);
-    if (error) {
-      console.error('Erro ao buscar tags do ponto:', error);
-      setSelectedTags(new Set());
-    } else {
+    if (!error) {
       const tagIds = new Set(data.map(item => item.tag_id));
       setSelectedTags(tagIds);
     }
-    setEditingPoint(ponto);
+    setActivePoint(ponto);
   };
   
   const handleAnalisarPedido = (orderItem) => {
@@ -182,24 +200,18 @@ function AdminPage() {
   };
 
   const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingPoint(null);
-    setNewPoint({ name: '', latitude: '', longitude: '', description: '', price_2y: '', price_3y: '' });
+    setActivePoint(null);
     setSelectedTags(new Set());
   };
 
   const handleFormChange = (e, field) => {
     const value = e.target.value;
-    if (editingPoint) {
-      setEditingPoint({ ...editingPoint, [field]: value });
-    } else {
-      setNewPoint({ ...newPoint, [field]: value });
-    }
+    setActivePoint(prev => ({ ...prev, [field]: value }));
   };
   
   const handleStatusChange = (newStatus) => {
-    if (editingPoint) {
-      setEditingPoint({ ...editingPoint, status: newStatus });
+    if (activePoint) {
+      setActivePoint(prev => ({ ...prev, status: newStatus }));
     }
   };
 
@@ -233,6 +245,7 @@ function AdminPage() {
         alert('Falha ao apagar o ponto.');
       } else {
         setPontos(pontos.filter(p => p.id !== pointId));
+        setPointTags(prev => prev.filter(pt => pt.point_id !== pointId));
       }
     }
   };
@@ -259,17 +272,17 @@ function AdminPage() {
     navigate('/login');
   };
 
-  const displayedPontos = pontos.filter(ponto => {
+  const displayedPontos = useMemo(() => pontos.filter(ponto => {
     if (filterTagId === 'all') {
       return true;
     }
     return pointTags.some(pt => pt.point_id === ponto.id && pt.tag_id === filterTagId);
-  });
+  }), [pontos, filterTagId, pointTags]);
 
-  const displayedOrders = orders.filter(order => {
+  const displayedOrders = useMemo(() => orders.filter(order => {
     if (orderStatusFilter === 'all') return true;
     return order.status === orderStatusFilter;
-  });
+  }), [orders, orderStatusFilter]);
 
   if (loading) return <div className="flex items-center justify-center min-h-screen">A carregar dados do painel...</div>;
 
@@ -372,7 +385,7 @@ function AdminPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button onClick={() => setIsModalOpen(true)}>
+                  <Button onClick={() => setActivePoint(initialPointState)}>
                     <PlusCircle className="h-4 w-4 mr-2" />
                     Adicionar
                   </Button>
@@ -425,43 +438,43 @@ function AdminPage() {
         </div>
       </div>
       
-      {(isModalOpen || editingPoint) && (
+      {activePoint && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-lg">
-            <CardHeader><CardTitle>{editingPoint ? 'Editar Ponto' : 'Adicionar Novo Ponto'}</CardTitle><CardDescription>{editingPoint ? 'Altere os dados do ponto de logradouro.' : 'Preencha os dados do novo ponto de logradouro.'}</CardDescription></CardHeader>
+            <CardHeader><CardTitle>{activePoint.id ? 'Editar Ponto' : 'Adicionar Novo Ponto'}</CardTitle><CardDescription>{activePoint.id ? 'Altere os dados do ponto de logradouro.' : 'Preencha os dados do novo ponto de logradouro.'}</CardDescription></CardHeader>
             <CardContent>
-              <form onSubmit={editingPoint ? handleUpdatePointSubmit : handleAddPointSubmit} className="space-y-4">
+              <form onSubmit={activePoint.id ? handleUpdatePointSubmit : handleAddPointSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="sm:col-span-2"><Label htmlFor="name">Endereço Completo</Label><Input id="name" value={(editingPoint ? editingPoint.name : newPoint.name) || ''} onChange={(e) => handleFormChange(e, 'name')} required /></div>
-                  <div><Label htmlFor="latitude">Latitude</Label><Input id="latitude" type="text" value={(editingPoint ? editingPoint.latitude : newPoint.latitude) || ''} onChange={(e) => handleFormChange(e, 'latitude')} required /></div>
-                  <div><Label htmlFor="longitude">Longitude</Label><Input id="longitude" type="text" value={(editingPoint ? editingPoint.longitude : newPoint.longitude) || ''} onChange={(e) => handleFormChange(e, 'longitude')} required /></div>
-                  <div className="sm:col-span-2"><Label htmlFor="description">Descrição (Opcional)</Label><Input id="description" value={(editingPoint ? editingPoint.description : newPoint.description) || ''} onChange={(e) => handleFormChange(e, 'description')} /></div>
-                  <div><Label htmlFor="price_2y">Preço (2 Anos)</Label><Input id="price_2y" type="text" value={(editingPoint ? editingPoint.price_2y : newPoint.price_2y) || ''} onChange={(e) => handleFormChange(e, 'price_2y')} required /></div>
-                  <div><Label htmlFor="price_3y">Preço (3 Anos)</Label><Input id="price_3y" type="text" value={(editingPoint ? editingPoint.price_3y : newPoint.price_3y) || ''} onChange={(e) => handleFormChange(e, 'price_3y')} required /></div>
+                  <div className="sm:col-span-2"><Label htmlFor="name">Endereço Completo</Label><Input id="name" value={activePoint.name || ''} onChange={(e) => handleFormChange(e, 'name')} required /></div>
+                  <div><Label htmlFor="latitude">Latitude</Label><Input id="latitude" type="text" value={activePoint.latitude || ''} onChange={(e) => handleFormChange(e, 'latitude')} required /></div>
+                  <div><Label htmlFor="longitude">Longitude</Label><Input id="longitude" type="text" value={activePoint.longitude || ''} onChange={(e) => handleFormChange(e, 'longitude')} required /></div>
+                  <div className="sm:col-span-2"><Label htmlFor="description">Descrição (Opcional)</Label><Input id="description" value={activePoint.description || ''} onChange={(e) => handleFormChange(e, 'description')} /></div>
+                  <div><Label htmlFor="price_2y">Preço (2 Anos)</Label><Input id="price_2y" type="text" value={activePoint.price_2y || ''} onChange={(e) => handleFormChange(e, 'price_2y')} required /></div>
+                  <div><Label htmlFor="price_3y">Preço (3 Anos)</Label><Input id="price_3y" type="text" value={activePoint.price_3y || ''} onChange={(e) => handleFormChange(e, 'price_3y')} required /></div>
                 
-                  {editingPoint && (
+                  {activePoint.id && (
                     <>
                       <div className="sm:col-span-2 pt-4 border-t">
                         <Label htmlFor="status">Status do Ponto</Label>
-                        <Select value={editingPoint.status} onValueChange={handleStatusChange}>
+                        <Select value={activePoint.status} onValueChange={handleStatusChange}>
                             <SelectTrigger className="w-full mt-2">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="available">Disponível</SelectItem>
                                 <SelectItem value="reserved">Reservado</SelectItem>
-                                <SelectItem value="sold">Vendido</SelectItem>
+                                <SelectItem value="sold">Vendido</SelectItem> 
                             </SelectContent>
                         </Select>
                       </div>
 
-                      {editingPoint.status === 'sold' && (
+                      {activePoint.status === 'sold' && (
                         <div className="sm:col-span-2">
                           <Label htmlFor="sold_until">Contrato Válido Até</Label>
                           <Input 
                             id="sold_until" 
                             type="date"
-                            value={formatDateForInput(editingPoint.sold_until)}
+                            value={formatDateForInput(activePoint.sold_until)}
                             onChange={(e) => handleFormChange(e, 'sold_until')}
                           />
                         </div>
@@ -487,7 +500,7 @@ function AdminPage() {
                 </div>
                 <div className="flex justify-end gap-2 pt-4">
                   <Button type="button" variant="outline" onClick={closeModal}>Cancelar</Button>
-                  <Button type="submit">{editingPoint ? 'Salvar Alterações' : 'Salvar Ponto'}</Button>
+                  <Button type="submit">{activePoint.id ? 'Salvar Alterações' : 'Salvar Ponto'}</Button>
                 </div>
               </form>
             </CardContent>
@@ -499,4 +512,3 @@ function AdminPage() {
 }
 
 export default AdminPage;
-

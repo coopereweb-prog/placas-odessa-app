@@ -97,8 +97,13 @@ function PontoInfoWindow({ ponto, onAddToCart, onClose }) {
           </div>
         )}
         {ponto.status === 'reserved' && (<div className="text-center"><p className="text-sm text-yellow-600 mb-2"><Clock className="h-4 w-4 inline mr-1" />Reservado</p></div>)}
-        {ponto.status === 'sold' && (<div className="text-center"><p className="text-sm text-red-600 mb-2">Este ponto já foi vendido</p></div>)}
-      </div>
+{ponto.status === 'sold' && (
+  <div className="text-center">
+    <p className="text-sm text-red-600 mb-2">
+  Contratado até: {ponto.sold_until ? new Date(ponto.sold_until).toLocaleDateString('pt-BR') : 'Indisponível'}
+</p>
+  </div>
+)}      </div>
     </InfoWindow>
   );
 }
