@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { createOrder } from '../lib/supabase'; // Importa a nova função
+import { createOrder } from '../lib/supabase.js'; // Importa a nova função
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
