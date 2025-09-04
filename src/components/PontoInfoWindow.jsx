@@ -11,12 +11,11 @@ export function PontoInfoWindow({ ponto, onAddToCart, onClose }) {
   const [periodo, setPeriodo] = useState("2");
 
   const handleAddToCartClick = () => {
-    // O componente apenas notifica o pai, passando os dados necessários.
     onAddToCart(ponto, parseInt(periodo));
   };
 
   const handleStreetViewClick = () => {
-    const streetViewUrl = `https://www.google.com/maps?q&layer=c&cbll=${ponto.lat},${ponto.lng}`;
+    const streetViewUrl = `http://maps.google.com/maps?q=&layer=c&cbll=${ponto.lat},${ponto.lng}`;
     window.open(streetViewUrl, '_blank');
   };
 
