@@ -213,56 +213,57 @@ function HomePage() {
     e.preventDefault();
     if (carrinho.length === 0) return;
 
-    const totalAmount = carrinho.reduce((total, item) => total + (item.preco || 0), 0);
-    const { data: orderData, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        customer_name: reserveData.nome,
-        customer_email: reserveData.email,
-        customer_phone: reserveData.telefone,
-        total_amount: totalAmount,
-        status: 'pending',
-      })
-      .select()
-      .single();
+    try {
+      // 1. Cria um array de promessas, onde cada uma é uma inserção na tabela 'orders'
+      // para cada item no carrinho.
+      const orderPromises = carrinho.map(ponto =>
+        supabase.from('orders').insert({
+          customer_name: reserveData.nome,
+          customer_email: reserveData.email,
+          customer_phone: reserveData.telefone,
+          total_amount: ponto.preco,
+          status: 'pending',
+          point_id: ponto.id,
+          period_years: ponto.periodo,
+        })
+      );
 
-    if (orderError || !orderData) {
-      alert("Ocorreu um erro ao criar o seu pedido.");
-      console.error("Erro ao inserir order:", orderError);
-      return;
+      // 2. Executa todas as promessas de inserção em paralelo.
+      const results = await Promise.all(orderPromises);
+
+      // 3. Verifica se houve erros durante as inserções.
+      const insertErrors = results.filter(res => res.error);
+      if (insertErrors.length > 0) {
+        console.error("Erros ao criar um ou mais pedidos:", insertErrors.map(e => e.error));
+        throw new Error("Falha ao criar um ou mais pedidos de reserva. Por favor, tente novamente.");
+      }
+
+      // 4. Se tudo correu bem, atualiza o status de todos os pontos reservados.
+      const pontosIds = carrinho.map(p => p.id);
+      const { error: updateError } = await supabase
+        .from('points')
+        .update({ status: 'reserved' })
+        .in('id', pontosIds);
+      
+      if (updateError) {
+        // Este é um estado de inconsistência. Os pedidos foram criados, mas os pontos não foram marcados como reservados.
+        // É importante logar isso para uma correção manual.
+        console.error("ERRO CRÍTICO: Os pedidos foram criados, mas falhou a atualização do status dos pontos:", updateError);
+        throw new Error("Os pedidos foram criados, mas houve um erro ao reservar os pontos. Por favor, contacte o suporte.");
+      }
+      
+      // 5. Limpa o estado da UI e notifica o usuário do sucesso.
+      setPontos(pontos.map(p => pontosIds.includes(p.id) ? { ...p, status: 'reserved' } : p));
+      setShowReserveModal(false);
+      setCarrinho([]);
+      setReserveData({ nome: '', email: '', telefone: '' });
+      alert('Pedido de reserva enviado com sucesso!');
+
+    } catch (error) {
+      // Captura qualquer erro lançado no bloco try e exibe um alerta.
+      alert(error.message || "Ocorreu um erro ao processar o seu pedido de reserva.");
+      console.error("Erro ao submeter a reserva:", error);
     }
-
-    const orderItems = carrinho.map(ponto => ({
-      order_id: orderData.id,
-      point_id: ponto.id,
-      price: ponto.preco,
-    }));
-
-    const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
-    
-    if (itemsError) {
-      alert("Ocorreu um erro ao salvar os itens do seu pedido.");
-      console.error("Erro ao inserir order_items:", itemsError);
-      return;
-    }
-
-    const pontosIds = carrinho.map(p => p.id);
-    const { error: updateError } = await supabase
-      .from('points')
-      .update({ status: 'reserved' })
-      .in('id', pontosIds);
-    
-    if (updateError) {
-      alert("Ocorreu um erro ao atualizar o status dos pontos.");
-      console.error("Erro ao atualizar pontos:", updateError);
-      return;
-    }
-    
-    setPontos(pontos.map(p => pontosIds.includes(p.id) ? { ...p, status: 'reserved' } : p));
-    setShowReserveModal(false);
-    setCarrinho([]);
-    setReserveData({ nome: '', email: '', telefone: '' });
-    alert('Pedido de reserva enviado com sucesso!');
   }
   
   const totalCarrinho = carrinho.reduce((total, item) => total + (item.preco || 0), 0);
@@ -391,4 +392,3 @@ function HomePage() {
 }
 
 export default HomePage
-
