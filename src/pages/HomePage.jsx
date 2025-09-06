@@ -1,12 +1,18 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { GoogleMap, useLoadScript, Marker } from '@react-google-maps/api';
-import { getPontos } from '../lib/supabase.js';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
+import { supabase, createOrder } from '../lib/supabase.js'; // Usando o createOrder que criamos
 import { PontoInfoWindow } from '../components/PontoInfoWindow.jsx';
 import { Header } from '../components/Header.jsx';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MapPin, ShoppingCart, Trash2, User, Mail, Phone } from 'lucide-react';
 
+// --- Constantes do Componente (definidas uma vez) ---
 const containerStyle = {
   width: '100%',
-  height: '100vh',
+  height: '600px',
 };
 
 const mapOptions = {
@@ -17,136 +23,79 @@ const mapOptions = {
   fullscreenControl: false,
 };
 
+const center = {
+  lat: -22.7799, // Coordenadas de Nova Odessa
+  lng: -47.2946,
+};
+
+const markerIcons = {
+  disponivel: {
+    path: 'M-8,0a8,8 0 1,0 16,0a8,8 0 1,0 -16,0',
+    fillColor: '#22c55e', // Verde
+    fillOpacity: 0.9,
+    scale: 1,
+    strokeColor: 'white',
+    strokeWeight: 2,
+  },
+  reservado: {
+    path: 'M-8,0a8,8 0 1,0 16,0a8,8 0 1,0 -16,0',
+    fillColor: '#eab308', // Amarelo
+    fillOpacity: 0.9,
+    scale: 1,
+    strokeColor: 'white',
+    strokeWeight: 2,
+  },
+  vendido: {
+    path: 'M-8,0a8,8 0 1,0 16,0a8,8 0 1,0 -16,0',
+    fillColor: '#ef4444', // Vermelho
+    fillOpacity: 0.9,
+    scale: 1,
+    strokeColor: 'white',
+    strokeWeight: 2,
+  },
+};
+
+// --- Componente Principal ---
 function HomePage() {
+  // --- Estados do Componente ---
   const [pontos, setPontos] = useState([]);
-  const [selectedPonto, setSelectedPonto] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const libraries = useMemo(() => ['maps'], []);
-  const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries,
-  });
-
-  useEffect(() => {
-    const fetchPontos = async () => {
-      try {
-        setLoading(true);
-        const data = await getPontos();
-        setPontos(data);
-      } catch (err) {
-        console.error('Erro ao carregar os pontos:', err);
-        setError('Não foi possível carregar os dados do mapa.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPontos();
-  }, []);
-
-  const center = useMemo(() => ({
-    lat: -22.7799, // Coordenadas aproximadas de Nova Odessa
-    lng: -47.2946,
-  }), []);
-
-  const handleMarkerClick = useCallback((ponto) => {
-    setSelectedPonto(ponto);
-  }, []);
-
-  const handleCloseInfoWindow = useCallback(() => {
-    setSelectedPonto(null);
-  }, []);
-
-  const getMarkerIcon = (status) => {
-    const color = {
-      disponivel: 'green',
-      reservado: 'yellow',
-      vendido: 'red',
-    }[status] || 'blue';
-
-    return {
-      path: window.google.maps.SymbolPath.CIRCLE,
-      fillColor: color,
-      fillOpacity: 0.9,
-      scale: 8,
-      strokeColor: 'white',
-      strokeWeight: 2,
-    };
-  };
-
-  if (loadError) return <div>Erro ao carregar o mapa. Verifique a chave da API do Google Maps.</div>;
-  if (!isLoaded || loading) return <div>A carregar mapa...</div>;
-  if (error) return <div>{error}</div>;
-
-  return (
-    <div>
-      <Header />
-      <GoogleMap
-        mapContainerStyle={containerStyle}
-        center={center}
-        zoom={15}
-        options={mapOptions}
-      >
-        {pontos.map((ponto) => (
-          <Marker
-            key={ponto.id}
-            position={{ lat: ponto.latitude, lng: ponto.longitude }}
-            onClick={() => handleMarkerClick(ponto)}
-            icon={getMarkerIcon(ponto.status)}
-            title={`${ponto.rua_principal} com ${ponto.rua_cruzamento}`}
-          />
-        ))}
-
-        {selectedPonto && (
-          <PontoInfoWindow
-            ponto={selectedPonto}
-            onClose={handleCloseInfoWindow}
-          />
-        )}
-      </GoogleMap>
-    </div>
-  );
-}
-
-
-function HomePage() {
-  const [selectedMarker, setSelectedMarker] = useState(null)
-  const [pontos, setPontos] = useState([])
-  const [showReserveModal, setShowReserveModal] = useState(false)
-  const [reserveData, setReserveData] = useState({ nome: '', email: '', telefone: '' })
-  const [carrinho, setCarrinho] = useState([])
-  
   const [tags, setTags] = useState([]);
   const [pointTags, setPointTags] = useState([]);
+  const [selectedMarker, setSelectedMarker] = useState(null);
+  const [carrinho, setCarrinho] = useState([]);
+  const [showReserveModal, setShowReserveModal] = useState(false);
+  const [reserveData, setReserveData] = useState({ nome: '', email: '', telefone: '' });
   const [filterTagId, setFilterTagId] = useState('all');
-  
   const mapRef = useRef(null);
 
+  // --- Efeito para Carregar Dados Iniciais ---
   useEffect(() => {
     async function getInitialData() {
+      // Usando Promise.all para carregar dados em paralelo
       const [pointsResponse, tagsResponse, pointTagsResponse] = await Promise.all([
-        supabase.from('points').select('*'),
+        supabase.from('pontos').select('*'), // CORRIGIDO: nome da tabela para 'pontos'
         supabase.from('tags').select('*').order('name', { ascending: true }),
         supabase.from('point_tags').select('*')
       ]);
 
       if (pointsResponse.error) {
-        console.error("Erro ao buscar pontos do Supabase:", pointsResponse.error);
+        console.error("Erro ao buscar pontos:", pointsResponse.error);
         alert("Não foi possível carregar os pontos do mapa.");
       } else {
-        const pontosValidos = pointsResponse.data.filter(p => p.latitude && p.longitude);
-        const pontosFormatados = pontosValidos.map(p => ({
-          ...p,
-          lat: parseFloat(p.latitude),
-          lng: parseFloat(p.longitude),
-          endereco: p.name,
-          descricao: p.description
-        }));
+        const pontosFormatados = pointsResponse.data
+          .filter(p => p.latitude && p.longitude)
+          .map(p => ({
+            ...p,
+            lat: parseFloat(p.latitude),
+            lng: parseFloat(p.longitude),
+            endereco: p.name,
+            descricao: p.description,
+            // Garantindo que o status seja um dos esperados
+            status: p.status || 'disponivel' 
+          }));
         setPontos(pontosFormatados);
       }
-      
+
       if (tagsResponse.error) console.error("Erro ao buscar tags:", tagsResponse.error);
       else setTags(tagsResponse.data);
 
@@ -156,50 +105,30 @@ function HomePage() {
     getInitialData();
   }, []);
 
+  // --- Lógica de Filtro e Mapa ---
   const displayedPontos = pontos.filter(ponto => {
-    if (filterTagId === 'all') {
-      return true;
-    }
-    return pointTags.some(pt => pt.point_id === ponto.id && pt.tag_id === filterTagId);
+    if (filterTagId === 'all') return true;
+    return pointTags.some(pt => pt.point_id === ponto.id && String(pt.tag_id) === String(filterTagId));
   });
-  
+
   const onLoad = useCallback((map) => {
     mapRef.current = map;
   }, []);
   
-  useEffect(() => {
-    if (mapRef.current && displayedPontos.length > 0) {
-      const bounds = new window.google.maps.LatLngBounds();
-      displayedPontos.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
-      mapRef.current.fitBounds(bounds);
-      
-      const listener = window.google.maps.event.addListener(mapRef.current, "idle", function() {
-        if (mapRef.current.getZoom() > 17) mapRef.current.setZoom(17);
-        window.google.maps.event.removeListener(listener);
-      });
-    } else if (mapRef.current && displayedPontos.length === 0 && filterTagId !== 'all') {
-        mapRef.current.panTo(center);
-        mapRef.current.setZoom(15);
-    }
-  }, [displayedPontos, filterTagId]);
-
-  const handleMarkerClick = (ponto) => {
-    setSelectedMarker(ponto);
-  };
-
+  // --- Lógica do Carrinho ---
   const handleAdicionarAoCarrinho = (ponto, periodo) => {
-    if (carrinho.find(item => item.id === ponto.id)) {
+    if (carrinho.some(item => item.id === ponto.id)) {
       alert("Este ponto já está no seu carrinho.");
       return;
     }
     const preco = periodo === 2 ? ponto.price_2y : ponto.price_3y;
     setCarrinho([...carrinho, { ...ponto, periodo, preco }]);
     setSelectedMarker(null);
-  }
-  
+  };
+
   const handleRemoverDoCarrinho = (pontoId) => {
     setCarrinho(carrinho.filter(item => item.id !== pontoId));
-  }
+  };
 
   const handleUpdatePeriodoCarrinho = (pontoId, novoPeriodo) => {
     setCarrinho(carrinho.map(item => {
@@ -209,98 +138,75 @@ function HomePage() {
       }
       return item;
     }));
-  }
+  };
 
+  // --- Submissão da Reserva (LÓGICA NOVA E SEGURA) ---
   const handleReserveSubmit = async (e) => {
     e.preventDefault();
     if (carrinho.length === 0) return;
 
+    const customerData = {
+      name: reserveData.nome,
+      email: reserveData.email,
+      phone: reserveData.telefone,
+    };
+    
+    // Formata os itens para a Edge Function
+    const cartItems = carrinho.map(item => ({
+      ponto_id: item.id,
+      periodo_anos: item.periodo,
+      price: item.preco,
+    }));
+
     try {
-      // 1. Cria um array de promessas, onde cada uma é uma inserção na tabela 'orders'
-      // para cada item no carrinho.
-      const orderPromises = carrinho.map(ponto =>
-        supabase.from('orders').insert({
-          customer_name: reserveData.nome,
-          customer_email: reserveData.email,
-          customer_phone: reserveData.telefone,
-          total_amount: ponto.preco,
-          status: 'pending',
-          point_id: ponto.id,
-          period_years: ponto.periodo,
-        })
-      );
+      // Chama a nova função segura que criamos
+      const result = await createOrder(customerData, cartItems);
+      console.log('Pedido criado com sucesso!', result);
 
-      // 2. Executa todas as promessas de inserção em paralelo.
-      const results = await Promise.all(orderPromises);
-
-      // 3. Verifica se houve erros durante as inserções.
-      const insertErrors = results.filter(res => res.error);
-      if (insertErrors.length > 0) {
-        console.error("Erros ao criar um ou mais pedidos:", insertErrors.map(e => e.error));
-        throw new Error("Falha ao criar um ou mais pedidos de reserva. Por favor, tente novamente.");
-      }
-
-      // 4. Se tudo correu bem, atualiza o status de todos os pontos reservados.
-      const pontosIds = carrinho.map(p => p.id);
-      const { error: updateError } = await supabase
-        .from('points')
-        .update({ status: 'reserved' })
-        .in('id', pontosIds);
+      // Atualiza a interface para o usuário ver os pontos como 'reservado'
+      const pontosIdsReservados = carrinho.map(p => p.id);
+      setPontos(pontos.map(p => pontosIdsReservados.includes(p.id) ? { ...p, status: 'reservado' } : p));
       
-      if (updateError) {
-        // Este é um estado de inconsistência. Os pedidos foram criados, mas os pontos não foram marcados como reservados.
-        // É importante logar isso para uma correção manual.
-        console.error("ERRO CRÍTICO: Os pedidos foram criados, mas falhou a atualização do status dos pontos:", updateError);
-        throw new Error("Os pedidos foram criados, mas houve um erro ao reservar os pontos. Por favor, contacte o suporte.");
-      }
-      
-      // 5. Limpa o estado da UI e notifica o usuário do sucesso.
-      setPontos(pontos.map(p => pontosIds.includes(p.id) ? { ...p, status: 'reserved' } : p));
+      // Limpa o formulário e o carrinho
       setShowReserveModal(false);
       setCarrinho([]);
       setReserveData({ nome: '', email: '', telefone: '' });
-      alert('Pedido de reserva enviado com sucesso!');
+      alert('Pedido de reserva enviado com sucesso! Entraremos em contato em breve.');
 
     } catch (error) {
-      // Captura qualquer erro lançado no bloco try e exibe um alerta.
-      alert(error.message || "Ocorreu um erro ao processar o seu pedido de reserva.");
-      console.error("Erro ao submeter a reserva:", error);
+      alert(`Falha ao criar o pedido: ${error.message}`);
+      console.error("Erro detalhado ao chamar createOrder:", error);
     }
-  }
+  };
   
+  // --- Cálculos para Exibição ---
   const totalCarrinho = carrinho.reduce((total, item) => total + (item.preco || 0), 0);
-  
-  const totalPontosDisponiveis = pontos.filter(p => p.status === 'available').length;
-  const totalPontosReservados = pontos.filter(p => p.status === 'reserved').length;
-  const totalPontosVendidos = pontos.filter(p => p.status === 'sold').length;
+  const totalPontosDisponiveis = pontos.filter(p => p.status === 'disponivel').length;
+  const totalPontosReservados = pontos.filter(p => p.status === 'reservado').length;
+  const totalPontosVendidos = pontos.filter(p => p.status === 'vendido').length;
 
+  // --- Renderização do Componente ---
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-md border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div><h1 className="text-3xl font-bold text-gray-800">Placas Nova Odessa</h1><p className="text-gray-500 mt-1">Sistema de Gestão de Placas de Logradouros</p></div>
-            <div className="flex items-center space-x-6">
-              <div className="text-center"><div className="text-2xl font-bold text-green-600">{totalPontosDisponiveis}</div><div className="text-sm text-gray-500">Disponíveis</div></div>
-              <div className="text-center"><div className="text-2xl font-bold text-yellow-600">{totalPontosReservados}</div><div className="text-sm text-gray-500">Reservados</div></div>
-              <div className="text-center"><div className="text-2xl font-bold text-red-600">{totalPontosVendidos}</div><div className="text-sm text-gray-500">Vendidos</div></div>
-            </div>
-          </div>
-        </div>
-      </header>
-
+      <Header />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           <div className="lg:col-span-1 space-y-8">
+            {/* Card de Informações */}
             <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5" />Bairro São Jorge</CardTitle><CardDescription>Prova de conceito do sistema de placas</CardDescription></CardHeader>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5" />Informações Gerais</CardTitle>
+                <CardDescription>
+                  Disponibilidade dos pontos
+                </CardDescription>
+              </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between"><span className="text-sm">Total de pontos:</span><span className="font-semibold">{displayedPontos.length}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-green-500 rounded-full"></div>Disponíveis:</span><span className="font-semibold text-green-600">{displayedPontos.filter(p => p.status === 'available').length}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-yellow-500 rounded-full"></div>Reservados:</span><span className="font-semibold text-yellow-600">{displayedPontos.filter(p => p.status === 'reserved').length}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-red-500 rounded-full"></div>Vendidos:</span><span className="font-semibold text-red-600">{displayedPontos.filter(p => p.status === 'sold').length}</span></div>
-                </div>
+                 <div className="space-y-2">
+                    <div className="flex items-center justify-between"><span className="text-sm">Total de pontos:</span><span className="font-semibold">{pontos.length}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-green-500 rounded-full"></div>Disponíveis:</span><span className="font-semibold text-green-600">{totalPontosDisponiveis}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-yellow-500 rounded-full"></div>Reservados:</span><span className="font-semibold text-yellow-600">{totalPontosReservados}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-red-500 rounded-full"></div>Vendidos:</span><span className="font-semibold text-red-600">{totalPontosVendidos}</span></div>
+                  </div>
                 <div className="pt-4 border-t">
                     <Label className="font-semibold">Filtrar por característica:</Label>
                     <Select value={filterTagId} onValueChange={setFilterTagId}>
@@ -310,7 +216,7 @@ function HomePage() {
                         <SelectContent>
                             <SelectItem value="all">Mostrar Todos os Pontos</SelectItem>
                             {tags.map(tag => (
-                                <SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>
+                                <SelectItem key={tag.id} value={String(tag.id)}>{tag.name}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
@@ -318,6 +224,7 @@ function HomePage() {
               </CardContent>
             </Card>
             
+            {/* Card do Carrinho */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-5 w-5" />Carrinho de Reservas</CardTitle>
@@ -356,14 +263,20 @@ function HomePage() {
             </Card>
           </div>
 
+          {/* Mapa Interativo */}
           <div className="lg:col-span-3">
             <Card>
               <CardHeader><CardTitle>Mapa Interativo - Pontos de Instalação</CardTitle><CardDescription>Clique nos marcadores para ver detalhes e adicionar ao carrinho</CardDescription></CardHeader>
               <CardContent>
                 <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
-                  <GoogleMap mapContainerStyle={mapContainerStyle} center={center} zoom={15} onLoad={onLoad} options={mapOptions}>
+                  <GoogleMap mapContainerStyle={containerStyle} center={center} zoom={15} onLoad={onLoad} options={mapOptions}>
                     {displayedPontos.map((ponto) => (
-                      <Marker key={ponto.id} position={{ lat: ponto.lat, lng: ponto.lng }} icon={markerIcons[ponto.status]} onClick={() => handleMarkerClick(ponto)} />
+                      <Marker 
+                        key={ponto.id} 
+                        position={{ lat: ponto.lat, lng: ponto.lng }} 
+                        icon={markerIcons[ponto.status] || markerIcons.disponivel} 
+                        onClick={() => setSelectedMarker(ponto)} 
+                      />
                     ))}
                     {selectedMarker && <PontoInfoWindow ponto={selectedMarker} onAddToCart={handleAdicionarAoCarrinho} onClose={() => setSelectedMarker(null)} />}
                   </GoogleMap>
@@ -374,6 +287,7 @@ function HomePage() {
         </div>
       </main>
 
+      {/* Modal de Reserva */}
       {showReserveModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
           <Card className="w-full max-w-md mx-4">
@@ -390,7 +304,7 @@ function HomePage() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default HomePage
+export default HomePage;
