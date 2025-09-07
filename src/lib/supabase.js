@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Garante que a aplicação falhe durante o build ou no início se as variáveis de ambiente não estiverem definidas.
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Variáveis de ambiente do Supabase (VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY) não estão definidas.");
 }
@@ -50,28 +49,20 @@ export const updatePontoStatus = async (pontoId, status, dadosCliente = null) =>
   return data[0]
 }
 
-// Nova função para criar um pedido via Edge Function
-// Esta função substitui a antiga `createReserva` e lida com a criação do pedido,
-// itens do pedido e atualização do status do ponto de forma atômica no backend.
+// CORREÇÃO: A função agora recebe os itens do carrinho diretamente
+// e o total é calculado no backend pela Edge Function.
 export const createOrder = async (customerData, cartItems) => {
-  const totalAmount = cartItems.reduce((sum, item) => sum + item.price, 0);
-  const items = cartItems.map(item => ({
-    ponto_id: item.ponto.id,
-    periodo_anos: item.periodo,
-    price: item.price
-  }));
-
+  // O formato dos 'cartItems' já é o correto vindo de HomePage.jsx
+  // Ex: [{ ponto_id, periodo_anos, price }]
   const { data, error } = await supabase.functions.invoke('create-order', {
     body: {
       customerData, // { name, email, phone }
-      items,
-      totalAmount,
+      items: cartItems,
     },
   });
 
   if (error) {
     console.error('Erro ao invocar a Edge Function create-order:', error);
-    // Lança o erro para que o componente que chamou possa tratá-lo
     throw error;
   }
 
