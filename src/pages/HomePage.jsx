@@ -91,7 +91,7 @@ function HomePage() {
             endereco: p.name,
             descricao: p.description,
             // Garantindo que o status seja um dos esperados
-            status: p.status || 'disponivel' 
+            status: p.status ? p.status : 'disponivel', 
           }));
         setPontos(pontosFormatados);
       }
