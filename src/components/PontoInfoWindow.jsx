@@ -32,7 +32,7 @@ export function PontoInfoWindow({ ponto, onAddToCart, onClose }) {
           <p className="text-sm"><strong>Descrição:</strong> {ponto.descricao}</p>
         </div>
 
-        {ponto.status === 'disponivel' && (
+        {ponto.status === 'available' && (
           <div className="space-y-4">
             <div>
               <Label className="font-semibold">Período de Veiculação:</Label>
@@ -58,8 +58,8 @@ export function PontoInfoWindow({ ponto, onAddToCart, onClose }) {
             </div>
           </div>
         )}
-        {ponto.status === 'reservado' && (<div className="text-center"><p className="text-sm text-yellow-600 mb-2"><Clock className="h-4 w-4 inline mr-1" />Reservado</p></div>)}
-        {ponto.status === 'vendido' && (<div className="text-center"><p className="text-sm text-red-600 mb-2">Contratado até: {ponto.sold_until ? new Date(ponto.sold_until).toLocaleDateString('pt-BR') : 'Indisponível'}</p></div>)}
+        {ponto.status === 'reserved' && (<div className="text-center"><p className="text-sm text-yellow-600 mb-2"><Clock className="h-4 w-4 inline mr-1" />Reservado</p></div>)}
+        {ponto.status === 'sold' && (<div className="text-center"><p className="text-sm text-red-600 mb-2">Contratado até: {ponto.sold_until ? new Date(ponto.sold_until).toLocaleDateString('pt-BR') : 'Indisponível'}</p></div>)}
       </div>
     </InfoWindow>
   );

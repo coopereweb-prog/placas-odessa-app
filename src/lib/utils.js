@@ -7,17 +7,17 @@ export function cn(...inputs) {
 
 export function getStatusBadge(status) {
   switch (status) {
-    case 'disponivel':
+    case 'available':
       return {
         label: 'Disponível',
         className: 'bg-green-500 hover:bg-green-600',
       };
-    case 'reservado':
+    case 'reserved':
       return {
         label: 'Reservado',
         className: 'bg-yellow-500 hover:bg-yellow-600',
       };
-    case 'vendido':
+    case 'sold':
       return {
         label: 'Contratado',
         className: 'bg-red-500 hover:bg-red-600',
