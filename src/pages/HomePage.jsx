@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
 import { supabase, createOrder } from '../lib/supabase.js'; // Usando o createOrder que criamos
 import { PontoInfoWindow } from '../components/PontoInfoWindow.jsx';
-import { Header } from '../components/Header.jsx';
+import Header from '../components/Header.jsx';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
