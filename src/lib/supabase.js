@@ -11,6 +11,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Funções para gerenciar pontos
 export const getPoints = async () => {
+  // CORRIGIDO: Nome da tabela para 'points'
   const { data, error } = await supabase
     .from('points')
     .select('*')
@@ -35,6 +36,7 @@ export const updatePointStatus = async (pointId, status, dadosCliente = null) =>
     updateData.reservado_em = new Date().toISOString()
   }
   
+  // CORRIGIDO: Nome da tabela para 'points'
   const { data, error } = await supabase
     .from('points')
     .update(updateData)
@@ -49,16 +51,11 @@ export const updatePointStatus = async (pointId, status, dadosCliente = null) =>
   return data[0]
 }
 
-// CORREÇÃO: A função agora recebe os itens do carrinho diretamente
-// e o total é calculado no backend pela Edge Function.
-export const createOrder = async (customerData, cartItems, totalAmount) => {
-  // O formato dos 'cartItems' já é o correto vindo de HomePage.jsx
-  // Ex: [{ ponto_id, periodo_anos, price }]
+export const createOrder = async (customerData, cartItems) => {
   const { data, error } = await supabase.functions.invoke('create-order', {
     body: {
-      customerData, // { name, email, phone }
+      customerData, 
       items: cartItems,
-      totalAmount, // Adiciona o valor total ao corpo da requisição
     },
   });
 
@@ -91,3 +88,4 @@ export const getImagemUrl = (path) => {
   
   return data.publicUrl
 }
+

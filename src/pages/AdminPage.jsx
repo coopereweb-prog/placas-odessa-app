@@ -32,13 +32,14 @@ function AdminPage() {
 
   const fetchOrders = async (status) => {
     setLoading(true);
+    // CORRIGIDO: Nome da coluna para 'name'
     const { data, error } = await supabase
       .from('orders')
       .select(`
         id, created_at, updated_at, customer_name, customer_email, customer_phone, total_amount, payment_receipt_url,
         order_items (
           id, price, periodo_anos,
-          points (id, rua_principal)
+          points (id, name) 
         )
       `)
       .eq('status', status)
@@ -102,20 +103,21 @@ function AdminPage() {
     if (!window.confirm(`Confirmar a venda para ${order.customer_name}?`)) return;
 
     try {
-      // 1. Atualizar o status dos pontos para 'vendido' e definir a data de expiração
+      
       for (const item of order.order_items) {
         const soldUntil = new Date();
         soldUntil.setFullYear(soldUntil.getFullYear() + item.periodo_anos);
         
+        // CORRIGIDO: Status para 'sold'
         const { error: pointError } = await supabase
           .from('points')
-          .update({ status: 'vendido', sold_until: soldUntil.toISOString() })
+          .update({ status: 'sold', sold_until: soldUntil.toISOString() })
           .eq('id', item.points.id);
 
         if (pointError) throw new Error(`Erro ao atualizar ponto ${item.points.id}: ${pointError.message}`);
       }
 
-      // 2. Atualizar o status do pedido para 'completed'
+      
       const { error: orderError } = await supabase
         .from('orders')
         .update({ status: 'completed' })
@@ -124,7 +126,7 @@ function AdminPage() {
       if (orderError) throw new Error(`Erro ao atualizar pedido: ${orderError.message}`);
 
       alert('Venda confirmada com sucesso!');
-      fetchOrders(activeTab); // Recarrega a lista de pedidos pendentes
+      fetchOrders(activeTab); 
     } catch (error) {
       console.error(error);
       alert(`Falha ao confirmar venda: ${error.message}`);
@@ -135,16 +137,17 @@ function AdminPage() {
     if (!window.confirm(`Cancelar a reserva para ${order.customer_name}?`)) return;
 
     try {
-      // 1. Reverter o status dos pontos para 'disponivel'
+      
       const pointIds = order.order_items.map(item => item.points.id);
+      // CORRIGIDO: Status para 'available'
       const { error: pointError } = await supabase
         .from('points')
-        .update({ status: 'disponivel' })
+        .update({ status: 'available' })
         .in('id', pointIds);
 
       if (pointError) throw new Error(`Erro ao reverter pontos: ${pointError.message}`);
 
-      // 2. Atualizar o status do pedido para 'cancelled'
+      
       const { error: orderError } = await supabase
         .from('orders')
         .update({ status: 'cancelled' })
@@ -153,7 +156,7 @@ function AdminPage() {
       if (orderError) throw new Error(`Erro ao cancelar pedido: ${orderError.message}`);
 
       alert('Reserva cancelada com sucesso!');
-      fetchOrders(activeTab); // Recarrega a lista de pedidos pendentes
+      fetchOrders(activeTab); 
     } catch (error) {
       console.error(error);
       alert(`Falha ao cancelar reserva: ${error.message}`);
@@ -200,7 +203,7 @@ function AdminPage() {
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <div>
-                            <CardTitle>Pedido #{order.id}</CardTitle>
+                            <CardTitle>Pedido #{order.id.substring(0, 8)}</CardTitle>
                             <CardDescription>
                               {status === 'pending' && `Recebido em: ${new Date(order.created_at).toLocaleString('pt-BR')}`}
                               {status === 'completed' && `Concluído em: ${new Date(order.updated_at).toLocaleString('pt-BR')}`}
@@ -221,7 +224,9 @@ function AdminPage() {
                           <h4 className="font-semibold">Itens do Pedido</h4>
                           {order.order_items.map(item => (
                             <div key={item.id} className="text-sm flex justify-between items-center bg-gray-50 p-2 rounded-md">
-                              <span className="flex items-center"><MapPin className="h-4 w-4 mr-2 text-gray-500" /> {item.points.rua_principal}</span>
+                              
+                              {/* CORRIGIDO: Propriedade para item.points.name */}
+                              <span className="flex items-center"><MapPin className="h-4 w-4 mr-2 text-gray-500" /> {item.points.name}</span>
                               <span className="flex items-center font-medium"><Calendar className="h-4 w-4 mr-2 text-gray-500" /> {item.periodo_anos} ano(s)</span>
                             </div>
                           ))}
@@ -279,3 +284,4 @@ function AdminPage() {
 }
 
 export default AdminPage;
+
