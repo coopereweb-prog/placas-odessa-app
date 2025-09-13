@@ -107,12 +107,12 @@ function AdminPage() {
         const soldUntil = new Date();
         soldUntil.setFullYear(soldUntil.getFullYear() + item.periodo_anos);
         
-        const { error: pontoError } = await supabase
+        const { error: pointError } = await supabase
           .from('points')
           .update({ status: 'vendido', sold_until: soldUntil.toISOString() })
           .eq('id', item.points.id);
 
-        if (pontoError) throw new Error(`Erro ao atualizar ponto ${item.points.id}: ${pontoError.message}`);
+        if (pointError) throw new Error(`Erro ao atualizar ponto ${item.points.id}: ${pointError.message}`);
       }
 
       // 2. Atualizar o status do pedido para 'completed'
@@ -136,13 +136,13 @@ function AdminPage() {
 
     try {
       // 1. Reverter o status dos pontos para 'disponivel'
-      const pontosIds = order.order_items.map(item => item.points.id);
-      const { error: pontoError } = await supabase
+      const pointIds = order.order_items.map(item => item.points.id);
+      const { error: pointError } = await supabase
         .from('points')
         .update({ status: 'disponivel' })
-        .in('id', pontosIds);
+        .in('id', pointIds);
 
-      if (pontoError) throw new Error(`Erro ao reverter pontos: ${pontoError.message}`);
+      if (pointError) throw new Error(`Erro ao reverter pontos: ${pointError.message}`);
 
       // 2. Atualizar o status do pedido para 'cancelled'
       const { error: orderError } = await supabase

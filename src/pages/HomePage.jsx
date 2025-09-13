@@ -58,7 +58,7 @@ const markerIcons = {
 // --- Componente Principal ---
 function HomePage() {
   // --- Estados do Componente ---
-  const [pontos, setPontos] = useState([]);
+  const [points, setPoints] = useState([]);
   const [tags, setTags] = useState([]);
   const [pointTags, setPointTags] = useState([]);
   const [selectedMarker, setSelectedMarker] = useState(null);
@@ -82,17 +82,17 @@ function HomePage() {
         console.error("Erro ao buscar pontos:", pointsResponse.error);
         alert("Não foi possível carregar os pontos do mapa.");
       } else {
-        const pontosFormatados = pointsResponse.data
+        const formattedPoints = pointsResponse.data
           .filter(p => p.latitude && p.longitude)
           .map(p => ({
             ...p,
             lat: parseFloat(p.latitude),
             lng: parseFloat(p.longitude),
             endereco: p.name,
-            descricao: p.description,
+            descricao: p.description, // Mantido em português por ser exibido na UI
             status: p.status,
           }));
-        setPontos(pontosFormatados);
+        setPoints(formattedPoints);
       }
 
       if (tagsResponse.error) console.error("Erro ao buscar tags:", tagsResponse.error);
@@ -105,9 +105,9 @@ function HomePage() {
   }, []);
 
   // --- Lógica de Filtro ---
-  const displayedPontos = pontos.filter(ponto => {
+  const displayedPoints = points.filter(point => {
     if (filterTagId === 'all') return true;
-    return pointTags.some(pt => pt.point_id === ponto.id && String(pt.tag_id) === String(filterTagId));
+    return pointTags.some(pt => pt.point_id === point.id && String(pt.tag_id) === String(filterTagId));
   });
 
   const onLoad = useCallback((map) => {
@@ -120,46 +120,46 @@ function HomePage() {
       return;
     }
 
-    if (displayedPontos.length === 0) {
+    if (displayedPoints.length === 0) {
       mapRef.current.panTo(center);
       mapRef.current.setZoom(15);
       return;
     }
 
-    if (displayedPontos.length === 1) {
+    if (displayedPoints.length === 1) {
       mapRef.current.panTo({
-        lat: displayedPontos[0].lat,
-        lng: displayedPontos[0].lng,
+        lat: displayedPoints[0].lat,
+        lng: displayedPoints[0].lng,
       });
       mapRef.current.setZoom(17);
       return;
     }
 
     const bounds = new window.google.maps.LatLngBounds();
-    displayedPontos.forEach(ponto => {
-      bounds.extend(new window.google.maps.LatLng(ponto.lat, ponto.lng));
+    displayedPoints.forEach(point => {
+      bounds.extend(new window.google.maps.LatLng(point.lat, point.lng));
     });
     mapRef.current.fitBounds(bounds);
-  }, [displayedPontos]);
+  }, [displayedPoints]);
 
   // --- Lógica do Carrinho ---
-  const handleAdicionarAoCarrinho = (ponto, periodo) => {
-    if (carrinho.some(item => item.id === ponto.id)) {
+  const handleAdicionarAoCarrinho = (point, periodo) => {
+    if (carrinho.some(item => item.id === point.id)) {
       alert("Este ponto já está no seu carrinho.");
       return;
     }
-    const preco = periodo === 2 ? ponto.price_2y : ponto.price_3y;
-    setCarrinho([...carrinho, { ...ponto, periodo, preco }]);
+    const preco = periodo === 2 ? point.price_2y : point.price_3y;
+    setCarrinho([...carrinho, { ...point, periodo, preco }]);
     setSelectedMarker(null);
   };
 
-  const handleRemoverDoCarrinho = (pontoId) => {
-    setCarrinho(carrinho.filter(item => item.id !== pontoId));
+  const handleRemoverDoCarrinho = (pointId) => {
+    setCarrinho(carrinho.filter(item => item.id !== pointId));
   };
 
-  const handleUpdatePeriodoCarrinho = (pontoId, novoPeriodo) => {
+  const handleUpdatePeriodoCarrinho = (pointId, novoPeriodo) => {
     setCarrinho(carrinho.map(item => {
-      if (item.id === pontoId) {
+      if (item.id === pointId) {
         const novoPreco = novoPeriodo === 2 ? item.price_2y : item.price_3y;
         return { ...item, periodo: novoPeriodo, preco: novoPreco };
       }
@@ -179,7 +179,7 @@ function HomePage() {
     };
     
     const cartItems = carrinho.map(item => ({
-      ponto_id: item.id,
+      point_id: item.id,
       periodo_anos: item.periodo,
       price: item.preco,
     }));
@@ -188,8 +188,8 @@ function HomePage() {
       const result = await createOrder(customerData, cartItems);
       console.log('Pedido criado com sucesso!', result);
 
-      const pontosIdsReservados = carrinho.map(p => p.id);
-      setPontos(pontos.map(p => pontosIdsReservados.includes(p.id) ? { ...p, status: 'reserved' } : p));
+      const reservedPointIds = carrinho.map(p => p.id);
+      setPoints(points.map(p => reservedPointIds.includes(p.id) ? { ...p, status: 'reserved' } : p));
       
       setShowReserveModal(false);
       setCarrinho([]);
@@ -203,9 +203,9 @@ function HomePage() {
   };
   
   // --- Cálculos para Exibição ---
-  const totalPontosDisponiveis = pontos.filter(p => p.status === 'available').length;
-  const totalPontosReservados = pontos.filter(p => p.status === 'reserved').length;
-  const totalPontosVendidos = pontos.filter(p => p.status === 'sold').length;
+  const totalAvailablePoints = points.filter(p => p.status === 'available').length;
+  const totalReservedPoints = points.filter(p => p.status === 'reserved').length;
+  const totalSoldPoints = points.filter(p => p.status === 'sold').length;
   const totalCarrinho = carrinho.reduce((acc, item) => acc + (item.preco || 0), 0);
 
   // --- Renderização do Componente ---
@@ -224,10 +224,10 @@ function HomePage() {
               </CardHeader>
               <CardContent className="space-y-4">
                  <div className="space-y-2">
-                    <div className="flex items-center justify-between"><span className="text-sm">Total de pontos:</span><span className="font-semibold">{pontos.length}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-green-500 rounded-full"></div>Disponíveis:</span><span className="font-semibold text-green-600">{totalPontosDisponiveis}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-yellow-500 rounded-full"></div>Reservados:</span><span className="font-semibold text-yellow-600">{totalPontosReservados}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-red-500 rounded-full"></div>Vendidos:</span><span className="font-semibold text-red-600">{totalPontosVendidos}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm">Total de pontos:</span><span className="font-semibold">{points.length}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-green-500 rounded-full"></div>Disponíveis:</span><span className="font-semibold text-green-600">{totalAvailablePoints}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-yellow-500 rounded-full"></div>Reservados:</span><span className="font-semibold text-yellow-600">{totalReservedPoints}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-sm flex items-center gap-1.5"><div className="w-3 h-3 bg-red-500 rounded-full"></div>Vendidos:</span><span className="font-semibold text-red-600">{totalSoldPoints}</span></div>
                   </div>
                 <div className="pt-4 border-t">
                     <Label className="font-semibold">Filtrar por característica:</Label>
@@ -255,19 +255,19 @@ function HomePage() {
                 {carrinho.length > 0 && (
                   <div className="space-y-4">
                     <div className="max-h-60 overflow-y-auto space-y-3 pr-2">
-                      {carrinho.map(ponto => (
-                        <div key={ponto.id} className="flex items-start justify-between text-sm p-2 bg-gray-100 rounded-md">
+                      {carrinho.map(point => (
+                        <div key={point.id} className="flex items-start justify-between text-sm p-2 bg-gray-100 rounded-md">
                           <div className="flex-1">
-                            <p className="font-medium">{ponto.endereco}</p>
+                            <p className="font-medium">{point.endereco}</p>
                             <div className="flex items-center gap-2 mt-2">
-                              <select value={ponto.periodo} onChange={(e) => handleUpdatePeriodoCarrinho(ponto.id, parseInt(e.target.value))} className="text-xs border-gray-300 rounded-md">
+                              <select value={point.periodo} onChange={(e) => handleUpdatePeriodoCarrinho(point.id, parseInt(e.target.value))} className="text-xs border-gray-300 rounded-md">
                                 <option value="2">2 Anos</option>
                                 <option value="3">3 Anos</option>
                               </select>
-                              <p className="font-semibold">R$ {ponto.preco?.toFixed(2)}</p>
+                              <p className="font-semibold">R$ {point.preco?.toFixed(2)}</p>
                             </div>
                           </div>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => handleRemoverDoCarrinho(ponto.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => handleRemoverDoCarrinho(point.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                         </div>
                       ))}
                     </div>
@@ -290,12 +290,12 @@ function HomePage() {
               <CardContent>
                 <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
                   <GoogleMap mapContainerStyle={containerStyle} center={center} zoom={15} onLoad={onLoad} options={mapOptions}>
-                    {displayedPontos.map((ponto) => (
+                    {displayedPoints.map((point) => (
                       <Marker 
-                        key={ponto.id} 
-                        position={{ lat: ponto.lat, lng: ponto.lng }} 
-                        icon={markerIcons[ponto.status] || markerIcons.available} 
-                        onClick={() => setSelectedMarker(ponto)} 
+                        key={point.id} 
+                        position={{ lat: point.lat, lng: point.lng }} 
+                        icon={markerIcons[point.status] || markerIcons.available} 
+                        onClick={() => setSelectedMarker(point)} 
                       />
                     ))}
                     {selectedMarker && <PontoInfoWindow ponto={selectedMarker} onAddToCart={handleAdicionarAoCarrinho} onClose={() => setSelectedMarker(null)} />}
@@ -327,4 +327,3 @@ function HomePage() {
 }
 
 export default HomePage;
-
