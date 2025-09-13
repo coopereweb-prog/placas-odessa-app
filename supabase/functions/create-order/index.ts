@@ -1,7 +1,15 @@
 // supabase/functions/create-order/index.ts
 
+/// <reference types="https://deno.land/x/deno/runtime/mod.ts" />
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+
+interface PointPriceData {
+  id: number;
+  price_2y: number;
+  price_3y: number;
+}
 
 Deno.serve(async (req) => {
   // Trata a requisição pre-flight do CORS
@@ -32,9 +40,10 @@ Deno.serve(async (req) => {
       .in('id', pointIds);
 
     if (pointsError) throw new Error('Erro ao buscar preços dos pontos.');
-    if (pointsData.length !== pointIds.length) throw new Error('Um ou mais pontos selecionados são inválidos.');
+    if (!pointsData || pointsData.length !== pointIds.length) throw new Error('Um ou mais pontos selecionados são inválidos.');
 
-    const priceMap = new Map(pointsData.map(p => [p.id, { price_2y: p.price_2y, price_3y: p.price_3y }]));
+    // Adicionada a asserção de tipo para garantir que o TypeScript conheça a estrutura dos dados
+    const priceMap = new Map((pointsData as PointPriceData[]).map(p => [p.id, { price_2y: p.price_2y, price_3y: p.price_3y }]));
 
     let calculatedTotalAmount = 0;
     const validatedItems = items.map(item => {
