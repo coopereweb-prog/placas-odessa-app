@@ -38,7 +38,7 @@ function AdminPage() {
         id, created_at, updated_at, customer_name, customer_email, customer_phone, total_amount, payment_receipt_url,
         order_items (
           id, price, periodo_anos,
-          pontos (id, rua_principal)
+          points (id, rua_principal)
         )
       `)
       .eq('status', status)
@@ -108,11 +108,11 @@ function AdminPage() {
         soldUntil.setFullYear(soldUntil.getFullYear() + item.periodo_anos);
         
         const { error: pontoError } = await supabase
-          .from('pontos')
+          .from('points')
           .update({ status: 'vendido', sold_until: soldUntil.toISOString() })
-          .eq('id', item.pontos.id);
+          .eq('id', item.points.id);
 
-        if (pontoError) throw new Error(`Erro ao atualizar ponto ${item.pontos.id}: ${pontoError.message}`);
+        if (pontoError) throw new Error(`Erro ao atualizar ponto ${item.points.id}: ${pontoError.message}`);
       }
 
       // 2. Atualizar o status do pedido para 'completed'
@@ -136,9 +136,9 @@ function AdminPage() {
 
     try {
       // 1. Reverter o status dos pontos para 'disponivel'
-      const pontosIds = order.order_items.map(item => item.pontos.id);
+      const pontosIds = order.order_items.map(item => item.points.id);
       const { error: pontoError } = await supabase
-        .from('pontos')
+        .from('points')
         .update({ status: 'disponivel' })
         .in('id', pontosIds);
 
@@ -221,7 +221,7 @@ function AdminPage() {
                           <h4 className="font-semibold">Itens do Pedido</h4>
                           {order.order_items.map(item => (
                             <div key={item.id} className="text-sm flex justify-between items-center bg-gray-50 p-2 rounded-md">
-                              <span className="flex items-center"><MapPin className="h-4 w-4 mr-2 text-gray-500" /> {item.pontos.rua_principal}</span>
+                              <span className="flex items-center"><MapPin className="h-4 w-4 mr-2 text-gray-500" /> {item.points.rua_principal}</span>
                               <span className="flex items-center font-medium"><Calendar className="h-4 w-4 mr-2 text-gray-500" /> {item.periodo_anos} ano(s)</span>
                             </div>
                           ))}

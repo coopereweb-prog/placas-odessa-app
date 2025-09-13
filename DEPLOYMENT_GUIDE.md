@@ -32,7 +32,7 @@ pnpm dev
 1. Vá para SQL Editor no painel do Supabase
 2. Execute o script `setup_database.sql`
 3. Verifique se as tabelas foram criadas:
-   - `pontos`
+   - `points`
    - `reservas`
    - `contratos`
    - `fotos_instalacao`
@@ -59,7 +59,7 @@ Execute o seguinte SQL para inserir os pontos do bairro São Jorge:
 ```sql
 -- Usar o arquivo pontos_instalacao.json para inserir dados
 -- Exemplo de inserção:
-INSERT INTO pontos (rua_principal, rua_cruzamento, latitude, longitude, tipo, status) 
+INSERT INTO points (rua_principal, rua_cruzamento, latitude, longitude, tipo, status) 
 VALUES 
 ('Rua das Acácias', 'Rua das Imbuias', -22.7556217, -47.3418358, 'padrao', 'disponivel'),
 -- ... adicionar todos os pontos do arquivo JSON

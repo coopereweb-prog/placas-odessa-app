@@ -71,8 +71,9 @@ function HomePage() {
   // --- Efeito para Carregar Dados Iniciais ---
   useEffect(() => {
     async function getInitialData() {
+      // CORREÇÃO APLICADA AQUI: O nome da tabela foi corrigido de 'pontos' para 'points'.
       const [pointsResponse, tagsResponse, pointTagsResponse] = await Promise.all([
-        supabase.from('pontos').select('*'),
+        supabase.from('points').select('*'),
         supabase.from('tags').select('*').order('name', { ascending: true }),
         supabase.from('point_tags').select('*')
       ]);
@@ -95,10 +96,10 @@ function HomePage() {
       }
 
       if (tagsResponse.error) console.error("Erro ao buscar tags:", tagsResponse.error);
-      else setTags(tagsResponse.data);
+      else setTags(tagsResponse.data || []); // Garante que o estado seja um array
 
       if (pointTagsResponse.error) console.error("Erro ao buscar point_tags:", pointTagsResponse.error);
-      else setPointTags(pointTagsResponse.data);
+      else setPointTags(pointTagsResponse.data || []); // Garante que o estado seja um array
     }
     getInitialData();
   }, []);
@@ -113,7 +114,7 @@ function HomePage() {
     mapRef.current = map;
   }, []);
 
-  // --- EFEITO PARA AUTO-ZOOM E CENTRALIZAÇÃO DO MAPA (CORREÇÃO) ---
+  // --- EFEITO PARA AUTO-ZOOM E CENTRALIZAÇÃO DO MAPA ---
   useEffect(() => {
     if (!mapRef.current || typeof window.google === 'undefined' || !window.google.maps) {
       return;

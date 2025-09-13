@@ -82,7 +82,7 @@ pnpm preview
 ## 📊 Estrutura do Banco de Dados
 
 ### Tabelas Principais
-- **pontos**: Pontos de instalação com coordenadas e status
+- **points**: Pontos de instalação com coordenadas e status
 - **reservas**: Reservas de 48 horas com dados dos clientes
 - **contratos**: Contratos confirmados (24 ou 36 meses)
 - **fotos_instalacao**: Fotos das placas instaladas
@@ -169,4 +169,3 @@ Projeto desenvolvido para a Prefeitura Municipal de Nova Odessa. Todos os direit
 ---
 
 *Desenvolvido com ❤️ para modernizar Nova Odessa*
-

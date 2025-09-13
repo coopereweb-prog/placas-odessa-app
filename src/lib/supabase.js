@@ -10,9 +10,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Funções para gerenciar pontos
-export const getPontos = async () => {
+export const getPoints = async () => {
   const { data, error } = await supabase
-    .from('pontos')
+    .from('points')
     .select('*')
     .order('id')
   
@@ -24,7 +24,7 @@ export const getPontos = async () => {
   return data
 }
 
-export const updatePontoStatus = async (pontoId, status, dadosCliente = null) => {
+export const updatePointStatus = async (pointId, status, dadosCliente = null) => {
   const updateData = {
     status,
     updated_at: new Date().toISOString()
@@ -36,9 +36,9 @@ export const updatePontoStatus = async (pontoId, status, dadosCliente = null) =>
   }
   
   const { data, error } = await supabase
-    .from('pontos')
+    .from('points')
     .update(updateData)
-    .eq('id', pontoId)
+    .eq('id', pointId)
     .select()
   
   if (error) {
