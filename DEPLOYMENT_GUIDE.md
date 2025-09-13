@@ -32,7 +32,7 @@ pnpm dev
 1. Vá para SQL Editor no painel do Supabase
 2. Execute o script `setup_database.sql`
 3. Verifique se as tabelas foram criadas:
-   - `pontos`
+   - `points`
    - `reservas`
    - `contratos`
    - `fotos_instalacao`
@@ -59,7 +59,7 @@ Execute o seguinte SQL para inserir os pontos do bairro São Jorge:
 ```sql
 -- Usar o arquivo pontos_instalacao.json para inserir dados
 -- Exemplo de inserção:
-INSERT INTO pontos (rua_principal, rua_cruzamento, latitude, longitude, tipo, status) 
+INSERT INTO points (rua_principal, rua_cruzamento, latitude, longitude, tipo, status) 
 VALUES 
 ('Rua das Acácias', 'Rua das Imbuias', -22.7556217, -47.3418358, 'padrao', 'disponivel'),
 -- ... adicionar todos os pontos do arquivo JSON
@@ -134,15 +134,24 @@ A Vercel detectará automaticamente as configurações do `vercel.json`:
 
 ## 🔧 Deploy Alternativo (Netlify)
 
-### Configuração Netlify
+### Passo 1: Configurar o Projeto no Netlify
+1. Conecte seu repositório Git.
+2. As configurações de build (`pnpm build`) e o diretório de publicação (`dist`) devem ser detectados automaticamente.
+
+### Passo 2: Configurar Variáveis de Ambiente
+Esta é a etapa mais crítica. No painel do seu site no Netlify, vá para **Site settings > Build & deploy > Environment** e adicione as mesmas variáveis de ambiente usadas na Vercel:
+- `VITE_GOOGLE_MAPS_API_KEY`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+### Passo 3: Configurar Redirecionamentos para SPA
+Para que o roteamento do React (React Router) funcione corretamente, crie um arquivo `netlify.toml` na raiz do seu projeto com o seguinte conteúdo. Isso garante que todas as rotas sejam direcionadas para o `index.html`.
+
 ```toml
 # netlify.toml
 [build]
-  publish = "dist"
   command = "pnpm build"
-
-[build.environment]
-  NODE_VERSION = "18"
+  publish = "dist"
 
 [[redirects]]
   from = "/*"
@@ -230,4 +239,3 @@ Para problemas específicos:
 ---
 
 **Desenvolvido para Nova Odessa, SP** 🏙️
-

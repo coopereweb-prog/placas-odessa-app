@@ -1,14 +1,18 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://kugysamxzumqgxzinazds.supabase.co'
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1Z3lzYW14enVtcWd4aW5hemRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2NDMwNDMsImV4cCI6MjA3MTIxOTA0M30.G2ckhkGvTPX1akyRdCHkIsN6WpswmNwidyHCYo80dWg'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Variáveis de ambiente do Supabase (VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY) não estão definidas.");
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Funções para gerenciar pontos
-export const getPontos = async () => {
+export const getPoints = async () => {
   const { data, error } = await supabase
-    .from('pontos')
+    .from('points')
     .select('*')
     .order('id')
   
@@ -20,7 +24,7 @@ export const getPontos = async () => {
   return data
 }
 
-export const updatePontoStatus = async (pontoId, status, dadosCliente = null) => {
+export const updatePointStatus = async (pointId, status, dadosCliente = null) => {
   const updateData = {
     status,
     updated_at: new Date().toISOString()
@@ -32,9 +36,9 @@ export const updatePontoStatus = async (pontoId, status, dadosCliente = null) =>
   }
   
   const { data, error } = await supabase
-    .from('pontos')
+    .from('points')
     .update(updateData)
-    .eq('id', pontoId)
+    .eq('id', pointId)
     .select()
   
   if (error) {
@@ -45,75 +49,24 @@ export const updatePontoStatus = async (pontoId, status, dadosCliente = null) =>
   return data[0]
 }
 
-// Funções para gerenciar reservas
-export const createReserva = async (pontoId, dadosCliente) => {
-  const { data, error } = await supabase
-    .from('reservas')
-    .insert([
-      {
-        ponto_id: pontoId,
-        nome: dadosCliente.nome,
-        email: dadosCliente.email,
-        telefone: dadosCliente.telefone,
-        status: 'ativa',
-        expira_em: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(), // 48 horas
-        created_at: new Date().toISOString()
-      }
-    ])
-    .select()
-  
-  if (error) {
-    console.error('Erro ao criar reserva:', error)
-    return null
-  }
-  
-  return data[0]
-}
+// CORREÇÃO: A função agora recebe os itens do carrinho diretamente
+// e o total é calculado no backend pela Edge Function.
+export const createOrder = async (customerData, cartItems) => {
+  // O formato dos 'cartItems' já é o correto vindo de HomePage.jsx
+  // Ex: [{ ponto_id, periodo_anos, price }]
+  const { data, error } = await supabase.functions.invoke('create-order', {
+    body: {
+      customerData, // { name, email, phone }
+      items: cartItems,
+    },
+  });
 
-export const getReservasExpiradas = async () => {
-  const { data, error } = await supabase
-    .from('reservas')
-    .select('*')
-    .eq('status', 'ativa')
-    .lt('expira_em', new Date().toISOString())
-  
   if (error) {
-    console.error('Erro ao buscar reservas expiradas:', error)
-    return []
+    console.error('Erro ao invocar a Edge Function create-order:', error);
+    throw error;
   }
-  
-  return data
-}
 
-export const expirarReserva = async (reservaId, pontoId) => {
-  // Atualiza a reserva como expirada
-  const { error: reservaError } = await supabase
-    .from('reservas')
-    .update({ status: 'expirada', updated_at: new Date().toISOString() })
-    .eq('id', reservaId)
-  
-  if (reservaError) {
-    console.error('Erro ao expirar reserva:', reservaError)
-    return false
-  }
-  
-  // Volta o ponto para disponível
-  const { error: pontoError } = await supabase
-    .from('pontos')
-    .update({ 
-      status: 'disponivel', 
-      dados_cliente: null,
-      reservado_em: null,
-      updated_at: new Date().toISOString() 
-    })
-    .eq('id', pontoId)
-  
-  if (pontoError) {
-    console.error('Erro ao atualizar ponto:', pontoError)
-    return false
-  }
-  
-  return true
+  return data;
 }
 
 // Função para upload de imagens
@@ -137,4 +90,3 @@ export const getImagemUrl = (path) => {
   
   return data.publicUrl
 }
-

@@ -1,269 +1,162 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabase.js';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LogOut, PlusCircle, Edit, Trash2, Inbox } from 'lucide-react';
-
-
-const getStatusBadge = (status) => {
-  const statusConfig = {
-    available: { label: 'Disponível', className: 'bg-green-500 hover:bg-green-600' },
-    reserved: { label: 'Reservado', className: 'bg-yellow-500 hover:bg-yellow-600' },
-    sold: { label: 'Vendido', className: 'bg-red-500 hover:bg-red-600' }
-  };
-  return statusConfig[status] || statusConfig.available;
-};
-
-const formatDateForInput = (dateString) => {
-  if (!dateString) return '';
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
-      return '';
-    }
-    return date.toISOString().slice(0, 10);
-  } catch (error) {
-    return '';
-  }
-};
-
-const parseCurrency = (value) => parseFloat(String(value || '0').replace(',', '.'));
+import { User, Mail, Phone, MapPin, Calendar, CheckCircle, XCircle, LogOut, Paperclip, UploadCloud } from 'lucide-react';
 
 function AdminPage() {
-  const [user, setUser] = useState(null);
-  const [pontos, setPontos] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('pending');
+  const [selectedFiles, setSelectedFiles] = useState({});
+  const [uploading, setUploading] = useState({});
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
-  // State refatorado para o modal e formulário de ponto
-  const initialPointState = { name: '', latitude: '', longitude: '', description: '', price_2y: '', price_3y: '', status: 'available', sold_until: null };
-  const [activePoint, setActivePoint] = useState(null);
-
-  const [tags, setTags] = useState([]);
-  const [newTagName, setNewTagName] = useState('');
-  const [selectedTags, setSelectedTags] = useState(new Set());
-
-  const [filterTagId, setFilterTagId] = useState('all');
-  const [pointTags, setPointTags] = useState([]);
-
-  const [orders, setOrders] = useState([]);
-  const [orderStatusFilter, setOrderStatusFilter] = useState('pending');
-
-  const fetchInitialData = useCallback(async () => {
-    setLoading(true);
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    if (!currentUser) {
-      navigate('/login');
-      setLoading(false);
-      return;
-    }
-    setUser(currentUser);
-
-    const [pointsResponse, tagsResponse, pointTagsResponse, ordersResponse] = await Promise.all([
-      supabase.from('points').select('*').order('created_at', { ascending: false }),
-      supabase.from('tags').select('*').order('name', { ascending: true }),
-      supabase.from('point_tags').select('*'),
-      supabase.from('orders').select('*, order_items(*, points(name))').order('created_at', { ascending: false })
-    ]);
-
-    if (pointsResponse.error) console.error('Erro ao buscar pontos:', pointsResponse.error);
-    else setPontos(pointsResponse.data);
-
-    if (tagsResponse.error) console.error('Erro ao buscar tags:', tagsResponse.error);
-    else setTags(tagsResponse.data);
-
-    if (pointTagsResponse.error) console.error('Erro ao buscar point_tags:', pointTagsResponse.error);
-    else setPointTags(pointTagsResponse.data);
-
-    if (ordersResponse.error) console.error('Erro ao buscar orders:', ordersResponse.error);
-    else setOrders(ordersResponse.data);
-
-    setLoading(false);
-  }, [navigate]);
-
   useEffect(() => {
-    fetchInitialData();
-  }, [fetchInitialData]);
+    const checkUserAndFetchOrders = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        navigate('/login');
+        return;
+      }
+      setUser(session.user);
+      fetchOrders(activeTab);
+    };
+    checkUserAndFetchOrders();
+  }, [navigate, activeTab]);
 
-  const savePointTags = async (pointId, currentSelectedTags) => {
-    const { error: deleteError } = await supabase.from('point_tags').delete().eq('point_id', pointId);
-    if (deleteError) {
-      console.error('Erro ao apagar tags antigas:', deleteError);
+  const fetchOrders = async (status) => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('orders')
+      .select(`
+        id, created_at, updated_at, customer_name, customer_email, customer_phone, total_amount, payment_receipt_url,
+        order_items (
+          id, price, periodo_anos,
+          points (id, rua_principal)
+        )
+      `)
+      .eq('status', status)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error("Erro ao buscar pedidos:", error);
+      alert("Não foi possível carregar os pedidos pendentes.");
+    } else {
+      setOrders(data);
+    }
+    setLoading(false);
+  };
+
+  const handleFileChange = (orderId, file) => {
+    setSelectedFiles(prev => ({ ...prev, [orderId]: file }));
+  };
+
+  const handleUploadReceipt = async (order) => {
+    const file = selectedFiles[order.id];
+    if (!file) {
+      alert('Por favor, selecione um arquivo primeiro.');
       return;
     }
-    if (currentSelectedTags.size > 0) {
-      const tagsToInsert = Array.from(currentSelectedTags).map(tagId => ({
-        point_id: pointId,
-        tag_id: tagId,
-      }));
-      const { error: insertError } = await supabase.from('point_tags').insert(tagsToInsert);
-      if (insertError) {
-        console.error('Erro ao inserir novas tags:', insertError);
-      }
+
+    setUploading(prev => ({ ...prev, [order.id]: true }));
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${order.id}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('order-receipts')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('order-receipts')
+        .getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ payment_receipt_url: urlData.publicUrl })
+        .eq('id', order.id);
+
+      if (updateError) throw updateError;
+
+      alert('Comprovante enviado com sucesso!');
+      fetchOrders(activeTab);
+    } catch (error) {
+      console.error("Erro no upload do comprovante:", error);
+      alert(`Falha ao enviar comprovante: ${error.message}`);
+    } finally {
+      setUploading(prev => ({ ...prev, [order.id]: false }));
     }
   };
 
-  const handleAddPointSubmit = async (e) => {
-    e.preventDefault();
-    const pointToInsert = {
-      name: activePoint.name,
-      latitude: parseCurrency(activePoint.latitude),
-      longitude: parseCurrency(activePoint.longitude),
-      description: activePoint.description,
-      price_2y: parseCurrency(activePoint.price_2y),
-      price_3y: parseCurrency(activePoint.price_3y),
-      status: 'available'
-    };
-    const { data, error } = await supabase.from('points').insert([pointToInsert]).select();
-    if (error) {
-      console.error('Erro ao adicionar novo ponto:', error);
-      alert('Falha ao adicionar o ponto.');
-    } else if (data) {
-      const newPointData = data[0];
-      await savePointTags(newPointData.id, selectedTags);
-      
-      // Atualiza o estado local em vez de refazer o fetch de tudo
-      setPontos(prevPontos => [newPointData, ...prevPontos]);
-      const { data: updatedPointTags, error: ptError } = await supabase.from('point_tags').select('*');
-      if (ptError) console.error('Erro ao buscar point_tags:', ptError);
-      else setPointTags(updatedPointTags);
+  const handleConfirmVenda = async (order) => {
+    if (!window.confirm(`Confirmar a venda para ${order.customer_name}?`)) return;
 
-      closeModal();
-    }
-  };
+    try {
+      // 1. Atualizar o status dos pontos para 'vendido' e definir a data de expiração
+      for (const item of order.order_items) {
+        const soldUntil = new Date();
+        soldUntil.setFullYear(soldUntil.getFullYear() + item.periodo_anos);
+        
+        const { error: pointError } = await supabase
+          .from('points')
+          .update({ status: 'vendido', sold_until: soldUntil.toISOString() })
+          .eq('id', item.points.id);
 
-  const handleUpdatePointSubmit = async (e) => {
-    e.preventDefault();
-    if (!activePoint?.id) return;
-    const pointToUpdate = { 
-      name: activePoint.name, 
-      latitude: parseCurrency(activePoint.latitude), 
-      longitude: parseCurrency(activePoint.longitude), 
-      description: activePoint.description, 
-      price_2y: parseCurrency(activePoint.price_2y), 
-      price_3y: parseCurrency(activePoint.price_3y),
-      status: activePoint.status,
-      sold_until: activePoint.status === 'sold' ? activePoint.sold_until : null,
-    };
-    const { data, error } = await supabase.from('points').update(pointToUpdate).eq('id', activePoint.id).select();
-
-    if (error) {
-      console.error('Erro ao atualizar o ponto:', error);
-      alert('Falha ao atualizar o ponto.');
-    } else if (data) {
-      await savePointTags(activePoint.id, selectedTags);
-
-      if (activePoint.status === 'sold') {
-        const orderToUpdate = orders.find(o => o.order_items.some(item => item.point_id === activePoint.id));
-        if (orderToUpdate) {
-          await supabase.from('orders').update({ status: 'active' }).eq('id', orderToUpdate.id);
-        }
+        if (pointError) throw new Error(`Erro ao atualizar ponto ${item.points.id}: ${pointError.message}`);
       }
 
-      const updatedPoint = data[0];
-      setPontos(prevPontos => prevPontos.map(p => p.id === activePoint.id ? updatedPoint : p));
-      const { data: updatedPointTags, error: ptError } = await supabase.from('point_tags').select('*');
-      if (ptError) console.error('Erro ao buscar point_tags:', ptError);
-      else setPointTags(updatedPointTags);
+      // 2. Atualizar o status do pedido para 'completed'
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({ status: 'completed' })
+        .eq('id', order.id);
 
-      closeModal();
-    }
-  };
+      if (orderError) throw new Error(`Erro ao atualizar pedido: ${orderError.message}`);
 
-  const handleEditClick = async (ponto) => {
-    const { data, error } = await supabase.from('point_tags').select('tag_id').eq('point_id', ponto.id);
-    if (!error) {
-      const tagIds = new Set(data.map(item => item.tag_id));
-      setSelectedTags(tagIds);
-    }
-    setActivePoint(ponto);
-  };
-  
-  const handleAnalisarPedido = (orderItem) => {
-    if (!orderItem || !orderItem.point_id) {
-      alert("Este pedido não contém itens válidos para analisar.");
-      return;
-    }
-    const pontoDoPedido = pontos.find(p => p.id === orderItem.point_id);
-    if (pontoDoPedido) {
-      handleEditClick(pontoDoPedido);
-    } else {
-      alert('Ponto não encontrado. Pode ter sido apagado.');
+      alert('Venda confirmada com sucesso!');
+      fetchOrders(activeTab); // Recarrega a lista de pedidos pendentes
+    } catch (error) {
+      console.error(error);
+      alert(`Falha ao confirmar venda: ${error.message}`);
     }
   };
 
-  const closeModal = () => {
-    setActivePoint(null);
-    setSelectedTags(new Set());
-  };
+  const handleCancelReserva = async (order) => {
+    if (!window.confirm(`Cancelar a reserva para ${order.customer_name}?`)) return;
 
-  const handleFormChange = (e, field) => {
-    const value = e.target.value;
-    setActivePoint(prev => ({ ...prev, [field]: value }));
-  };
-  
-  const handleStatusChange = (newStatus) => {
-    if (activePoint) {
-      setActivePoint(prev => ({ ...prev, status: newStatus }));
-    }
-  };
+    try {
+      // 1. Reverter o status dos pontos para 'disponivel'
+      const pointIds = order.order_items.map(item => item.points.id);
+      const { error: pointError } = await supabase
+        .from('points')
+        .update({ status: 'disponivel' })
+        .in('id', pointIds);
 
-  const handleTagCheckboxChange = (tagId) => {
-    const newSelectedTags = new Set(selectedTags);
-    if (newSelectedTags.has(tagId)) {
-      newSelectedTags.delete(tagId);
-    } else {
-      newSelectedTags.add(tagId);
-    }
-    setSelectedTags(newSelectedTags);
-  };
-  
-  const handleAddNewTag = async () => {
-    if (!newTagName.trim()) return alert('O nome da tag não pode estar vazio.');
-    const { data, error } = await supabase.from('tags').insert({ name: newTagName.trim() }).select();
-    if (error) {
-      console.error('Erro ao adicionar tag:', error);
-      alert('Falha ao adicionar a tag. Verifique se ela já existe.');
-    } else if (data) {
-      setTags([...tags, data[0]].sort((a, b) => a.name.localeCompare(b.name)));
-      setNewTagName('');
-    }
-  };
+      if (pointError) throw new Error(`Erro ao reverter pontos: ${pointError.message}`);
 
-  const handleDeletePoint = async (pointId) => {
-    if (window.confirm('Tem a certeza de que deseja apagar este ponto? Esta ação não pode ser desfeita.')) {
-      const { error } = await supabase.from('points').delete().eq('id', pointId);
-      if (error) {
-        console.error('Erro ao apagar o ponto:', error);
-        alert('Falha ao apagar o ponto.');
-      } else {
-        setPontos(pontos.filter(p => p.id !== pointId));
-        setPointTags(prev => prev.filter(pt => pt.point_id !== pointId));
-      }
-    }
-  };
+      // 2. Atualizar o status do pedido para 'cancelled'
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({ status: 'cancelled' })
+        .eq('id', order.id);
 
-  const handleDeleteOrder = async (orderId) => {
-    if (window.confirm('Tem a certeza de que deseja apagar este pedido? Os pontos voltarão a ficar disponíveis.')) {
-      const { error } = await supabase.rpc('delete_order_and_revert_points', {
-        order_id_to_delete: orderId
-      });
-      if (error) {
-        console.error('Erro ao apagar o pedido:', error);
-        alert('Falha ao apagar o pedido.');
-      } else {
-        setOrders(orders.filter(o => o.id !== orderId));
-        const { data: pointsData, error: pointsError } = await supabase.from('points').select('*').order('created_at', { ascending: false });
-        if (pointsError) console.error('Erro ao buscar pontos:', pointsError);
-        else setPontos(pointsData);
-      }
+      if (orderError) throw new Error(`Erro ao cancelar pedido: ${orderError.message}`);
+
+      alert('Reserva cancelada com sucesso!');
+      fetchOrders(activeTab); // Recarrega a lista de pedidos pendentes
+    } catch (error) {
+      console.error(error);
+      alert(`Falha ao cancelar reserva: ${error.message}`);
     }
   };
 
@@ -272,242 +165,116 @@ function AdminPage() {
     navigate('/login');
   };
 
-  const displayedPontos = useMemo(() => pontos.filter(ponto => {
-    if (filterTagId === 'all') {
-      return true;
-    }
-    return pointTags.some(pt => pt.point_id === ponto.id && pt.tag_id === filterTagId);
-  }), [pontos, filterTagId, pointTags]);
-
-  const displayedOrders = useMemo(() => orders.filter(order => {
-    if (orderStatusFilter === 'all') return true;
-    return order.status === orderStatusFilter;
-  }), [orders, orderStatusFilter]);
-
-  if (loading) return <div className="flex items-center justify-center min-h-screen">A carregar dados do painel...</div>;
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
+  }
 
   return (
-    <>
-      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto">
-          <header className="flex items-center justify-between mb-8">
-             <div><h1 className="text-3xl font-bold text-gray-800">Painel de Administração</h1><p className="text-gray-500 mt-1">Bem-vindo, {user?.email}</p></div><Button onClick={handleLogout} variant="outline"><LogOut className="h-4 w-4 mr-2" />Sair</Button>
-          </header>
-          
-          <main className="space-y-8">
-            <Card>
-              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><Inbox className="h-5 w-5" /> Gestão de Pedidos (CRM)</CardTitle>
-                  <CardDescription>Visualize e gira os pedidos pendentes e contratos ativos.</CardDescription>
-                </div>
-                <Select value={orderStatusFilter} onValueChange={setOrderStatusFilter}>
-                    <SelectTrigger className="w-full sm:w-[180px]">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="pending">Pendentes</SelectItem>
-                        <SelectItem value="active">Contratos Ativos</SelectItem>
-                        <SelectItem value="all">Todos os Pedidos</SelectItem>
-                    </SelectContent>
-                </Select>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Pontos</TableHead>
-                      <TableHead>Valor Total</TableHead>
-                      <TableHead>Data do Pedido</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {displayedOrders && displayedOrders.length > 0 ? (
-                      displayedOrders.map((order) => (
-                        <TableRow key={order.id}>
-                          <TableCell>
-                            <div className="font-medium">{order.customer_name}</div>
-                            <div className="text-sm text-gray-500">{order.customer_email}</div>
-                          </TableCell>
-                          <TableCell>
-                            <ul className="list-disc list-inside text-sm">
-                              {order.order_items.map(item => (
-                                <li key={item.point_id}>{item.points?.name || 'Ponto indisponível'}</li>
-                              ))}
-                            </ul>
-                          </TableCell>
-                          <TableCell>R$ {order.total_amount?.toFixed(2)}</TableCell>
-                          <TableCell>{new Date(order.created_at).toLocaleString('pt-BR')}</TableCell>
-                          <TableCell><Badge variant={order.status === 'active' ? 'default' : 'secondary'}>{order.status}</Badge></TableCell>
-                          <TableCell className="text-right space-x-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handleAnalisarPedido(order.order_items[0])}
-                              disabled={!order.order_items || order.order_items.length === 0}
-                            >
-                              Analisar
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteOrder(order.id)}>
-                                <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center">Nenhum pedido encontrado para este status.</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <CardTitle>Gestão de Pontos</CardTitle>
-                  <CardDescription>Adicione, edite ou remova os pontos de logradouros.</CardDescription>
-                </div>
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <Select value={filterTagId} onValueChange={setFilterTagId}>
-                    <SelectTrigger className="w-full sm:w-[180px]">
-                      <SelectValue placeholder="Filtrar por tag..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas as Tags</SelectItem>
-                      {tags.map(tag => (
-                        <SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={() => setActivePoint(initialPointState)}>
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    Adicionar
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                        <TableHead className="w-[80px]">ID</TableHead>
-                        <TableHead>Endereço</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Contrato Até</TableHead>
-                        <TableHead>Preço (2 Anos)</TableHead>
-                        <TableHead>Preço (3 Anos)</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {displayedPontos.map((ponto) => { 
-                        const statusInfo = getStatusBadge(ponto.status); 
-                        return (
-                            <TableRow key={ponto.id}>
-                                <TableCell className="font-medium">{ponto.id.substring(0, 5)}...</TableCell>
-                                <TableCell>{ponto.name}</TableCell>
-                                <TableCell><Badge className={statusInfo.className}>{statusInfo.label}</Badge></TableCell>
-                                <TableCell>
-                                {ponto.status === 'sold' && ponto.sold_until 
-                                    ? new Date(ponto.sold_until).toLocaleDateString('pt-BR') 
-                                    : '—'}
-                                </TableCell>
-                                <TableCell>R$ {ponto.price_2y?.toFixed(2)}</TableCell>
-                                <TableCell>R$ {ponto.price_3y?.toFixed(2)}</TableCell>
-                                <TableCell className="text-right space-x-2">
-                                <Button variant="ghost" size="icon" onClick={() => handleEditClick(ponto)}><Edit className="h-4 w-4" /></Button>
-                                <Button variant="ghost" size="icon" onClick={() => handleDeletePoint(ponto.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
-                                </TableCell>
-                            </TableRow>
-                        );
-                        })}
-                    </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle>Gestão de Tags</CardTitle><CardDescription>Adicione ou remova as tags que podem ser associadas aos pontos.</CardDescription></CardHeader>
-              <CardContent><div className="flex items-start gap-4"><div className="flex-1"><Label htmlFor="new-tag">Nova Tag</Label><div className="flex gap-2 mt-2"><Input id="new-tag" placeholder="Ex: Perto de Escola" value={newTagName} onChange={(e) => setNewTagName(e.target.value)} /><Button onClick={handleAddNewTag}><PlusCircle className="h-4 w-4" /></Button></div></div><div className="flex-1"><Label>Tags Existentes</Label><div className="mt-2 p-3 border rounded-md min-h-[40px] bg-gray-50">{tags.length > 0 ? (<div className="flex flex-wrap gap-2">{tags.map(tag => (<Badge key={tag.id} variant="secondary">{tag.name}</Badge>))}</div>) : (<p className="text-sm text-gray-500">Nenhuma tag adicionada ainda.</p>)}</div></div></div></CardContent>
-            </Card>
-          </main>
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8">
+      <header className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">Painel Administrativo</h1>
+          <p className="text-gray-600">Gerenciamento de Pedidos</p>
         </div>
-      </div>
-      
-      {activePoint && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-lg">
-            <CardHeader><CardTitle>{activePoint.id ? 'Editar Ponto' : 'Adicionar Novo Ponto'}</CardTitle><CardDescription>{activePoint.id ? 'Altere os dados do ponto de logradouro.' : 'Preencha os dados do novo ponto de logradouro.'}</CardDescription></CardHeader>
-            <CardContent>
-              <form onSubmit={activePoint.id ? handleUpdatePointSubmit : handleAddPointSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="sm:col-span-2"><Label htmlFor="name">Endereço Completo</Label><Input id="name" value={activePoint.name || ''} onChange={(e) => handleFormChange(e, 'name')} required /></div>
-                  <div><Label htmlFor="latitude">Latitude</Label><Input id="latitude" type="text" value={activePoint.latitude || ''} onChange={(e) => handleFormChange(e, 'latitude')} required /></div>
-                  <div><Label htmlFor="longitude">Longitude</Label><Input id="longitude" type="text" value={activePoint.longitude || ''} onChange={(e) => handleFormChange(e, 'longitude')} required /></div>
-                  <div className="sm:col-span-2"><Label htmlFor="description">Descrição (Opcional)</Label><Input id="description" value={activePoint.description || ''} onChange={(e) => handleFormChange(e, 'description')} /></div>
-                  <div><Label htmlFor="price_2y">Preço (2 Anos)</Label><Input id="price_2y" type="text" value={activePoint.price_2y || ''} onChange={(e) => handleFormChange(e, 'price_2y')} required /></div>
-                  <div><Label htmlFor="price_3y">Preço (3 Anos)</Label><Input id="price_3y" type="text" value={activePoint.price_3y || ''} onChange={(e) => handleFormChange(e, 'price_3y')} required /></div>
-                
-                  {activePoint.id && (
-                    <>
-                      <div className="sm:col-span-2 pt-4 border-t">
-                        <Label htmlFor="status">Status do Ponto</Label>
-                        <Select value={activePoint.status} onValueChange={handleStatusChange}>
-                            <SelectTrigger className="w-full mt-2">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="available">Disponível</SelectItem>
-                                <SelectItem value="reserved">Reservado</SelectItem>
-                                <SelectItem value="sold">Vendido</SelectItem> 
-                            </SelectContent>
-                        </Select>
-                      </div>
+        <Button onClick={handleLogout} variant="outline">
+          <LogOut className="h-4 w-4 mr-2" /> Sair
+        </Button>
+      </header>
 
-                      {activePoint.status === 'sold' && (
-                        <div className="sm:col-span-2">
-                          <Label htmlFor="sold_until">Contrato Válido Até</Label>
-                          <Input 
-                            id="sold_until" 
-                            type="date"
-                            value={formatDateForInput(activePoint.sold_until)}
-                            onChange={(e) => handleFormChange(e, 'sold_until')}
-                          />
+      <main>
+        <Tabs defaultValue="pending" onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="pending">Pendentes</TabsTrigger>
+            <TabsTrigger value="completed">Concluídos</TabsTrigger>
+            <TabsTrigger value="cancelled">Cancelados</TabsTrigger>
+          </TabsList>
+
+          {['pending', 'completed', 'cancelled'].map(status => (
+            <TabsContent key={status} value={status}>
+              {orders.length === 0 ? (
+                <p className="text-center text-gray-500 mt-16">Nenhum pedido com status '{status}'.</p>
+              ) : (
+                <div className="space-y-6 mt-6">
+                  {orders.map(order => (
+                    <Card key={order.id}>
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle>Pedido #{order.id}</CardTitle>
+                            <CardDescription>
+                              {status === 'pending' && `Recebido em: ${new Date(order.created_at).toLocaleString('pt-BR')}`}
+                              {status === 'completed' && `Concluído em: ${new Date(order.updated_at).toLocaleString('pt-BR')}`}
+                              {status === 'cancelled' && `Cancelado em: ${new Date(order.updated_at).toLocaleString('pt-BR')}`}
+                            </CardDescription>
+                          </div>
+                          <Badge variant="secondary">Total: R$ {order.total_amount.toFixed(2)}</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-3">
+                          <h4 className="font-semibold">Dados do Cliente</h4>
+                          <p className="text-sm flex items-center"><User className="h-4 w-4 mr-2 text-gray-500" /> {order.customer_name}</p>
+                          <p className="text-sm flex items-center"><Mail className="h-4 w-4 mr-2 text-gray-500" /> {order.customer_email}</p>
+                          <p className="text-sm flex items-center"><Phone className="h-4 w-4 mr-2 text-gray-500" /> {order.customer_phone}</p>
+                        </div>
+                        <div className="space-y-3">
+                          <h4 className="font-semibold">Itens do Pedido</h4>
+                          {order.order_items.map(item => (
+                            <div key={item.id} className="text-sm flex justify-between items-center bg-gray-50 p-2 rounded-md">
+                              <span className="flex items-center"><MapPin className="h-4 w-4 mr-2 text-gray-500" /> {item.points.rua_principal}</span>
+                              <span className="flex items-center font-medium"><Calendar className="h-4 w-4 mr-2 text-gray-500" /> {item.periodo_anos} ano(s)</span>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+
+                      {(status === 'pending' || order.payment_receipt_url) && (
+                        <CardContent className="border-t pt-4">
+                          <h4 className="font-semibold mb-3">Comprovante de Pagamento</h4>
+                          {order.payment_receipt_url ? (
+                            <a
+                              href={order.payment_receipt_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center text-sm text-blue-600 hover:underline"
+                            >
+                              <Paperclip className="h-4 w-4 mr-2" /> Ver Comprovante Anexado
+                            </a>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="file"
+                                className="flex-1"
+                                onChange={(e) => handleFileChange(order.id, e.target.files[0])}
+                                disabled={uploading[order.id]}
+                              />
+                              <Button onClick={() => handleUploadReceipt(order)} disabled={!selectedFiles[order.id] || uploading[order.id]}>
+                                <UploadCloud className="h-4 w-4 mr-2" /> {uploading[order.id] ? 'Enviando...' : 'Anexar'}
+                              </Button>
+                            </div>
+                          )}
+                        </CardContent>
+                      )}
+
+                      {status === 'pending' && (
+                        <div className="p-6 pt-4 flex gap-4">
+                          <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => handleConfirmVenda(order)}>
+                            <CheckCircle className="h-4 w-4 mr-2" /> Confirmar Venda
+                          </Button>
+                          <Button className="flex-1" variant="destructive" onClick={() => handleCancelReserva(order)}>
+                            <XCircle className="h-4 w-4 mr-2" /> Cancelar Reserva
+                          </Button>
                         </div>
                       )}
-                    </>
-                  )}
+                    </Card>
+                  ))}
                 </div>
-
-                <div className="pt-4 border-t">
-                  <Label className="font-semibold">Tags</Label>
-                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {tags.map((tag) => (
-                      <div key={tag.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`tag-${tag.id}`}
-                          checked={selectedTags.has(tag.id)}
-                          onCheckedChange={() => handleTagCheckboxChange(tag.id)}
-                        />
-                        <Label htmlFor={`tag-${tag.id}`} className="font-normal">{tag.name}</Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button type="button" variant="outline" onClick={closeModal}>Cancelar</Button>
-                  <Button type="submit">{activePoint.id ? 'Salvar Alterações' : 'Salvar Ponto'}</Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
+      </main>
+    </div>
   );
 }
 
