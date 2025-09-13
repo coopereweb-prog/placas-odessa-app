@@ -185,7 +185,7 @@ function HomePage() {
     }));
 
     try {
-      const result = await createOrder(customerData, cartItems);
+      const result = await createOrder(customerData, cartItems, totalCarrinho);
       console.log('Pedido criado com sucesso!', result);
 
       const reservedPointIds = carrinho.map(p => p.id);

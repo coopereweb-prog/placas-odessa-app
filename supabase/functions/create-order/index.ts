@@ -17,20 +17,50 @@ Deno.serve(async (req) => {
     )
 
     // Extrai os dados do corpo da requisição
-    const { customerData, items, totalAmount } = await req.json()
+    const { customerData, items } = await req.json()
 
     // Validação básica dos dados recebidos
-    if (!customerData || !items || !totalAmount) {
-      throw new Error('Dados do cliente, itens e valor total são obrigatórios.')
+    if (!customerData || !items || !Array.isArray(items) || items.length === 0) {
+      throw new Error('Dados do cliente e itens são obrigatórios.')
     }
+
+    // --- Lógica de Segurança: Calcular o total no servidor ---
+    const pointIds = items.map(item => item.point_id);
+    const { data: pointsData, error: pointsError } = await supabaseAdmin
+      .from('points')
+      .select('id, price_2y, price_3y')
+      .in('id', pointIds);
+
+    if (pointsError) throw new Error('Erro ao buscar preços dos pontos.');
+    if (pointsData.length !== pointIds.length) throw new Error('Um ou mais pontos selecionados são inválidos.');
+
+    const priceMap = new Map(pointsData.map(p => [p.id, { price_2y: p.price_2y, price_3y: p.price_3y }]));
+
+    let calculatedTotalAmount = 0;
+    const validatedItems = items.map(item => {
+      const prices = priceMap.get(item.point_id);
+      if (!prices) throw new Error(`Preço não encontrado para o ponto ${item.point_id}`);
+
+      const price = item.periodo_anos === 2 ? prices.price_2y : prices.price_3y;
+      if (typeof price !== 'number') throw new Error(`Período inválido para o ponto ${item.point_id}`);
+      
+      calculatedTotalAmount += price;
+
+      // Retorna o item com o preço validado pelo servidor
+      return {
+        ...item,
+        price: price,
+      };
+    });
+    // --- Fim da Lógica de Segurança ---
 
     // Chama a função RPC no banco de dados para criar o pedido
     const { data: newOrderId, error: rpcError } = await supabaseAdmin.rpc('create_new_order', {
       customer_name: customerData.name,
       customer_email: customerData.email,
       customer_phone: customerData.phone,
-      total_amount: totalAmount,
-      items: items, // O array de itens deve corresponder ao tipo 'order_item_input'
+      total_amount: calculatedTotalAmount, // Usa o total calculado no servidor
+      items: validatedItems, // Usa os itens com preços validados pelo servidor
     })
 
     if (rpcError) {

@@ -51,13 +51,14 @@ export const updatePointStatus = async (pointId, status, dadosCliente = null) =>
 
 // CORREÇÃO: A função agora recebe os itens do carrinho diretamente
 // e o total é calculado no backend pela Edge Function.
-export const createOrder = async (customerData, cartItems) => {
+export const createOrder = async (customerData, cartItems, totalAmount) => {
   // O formato dos 'cartItems' já é o correto vindo de HomePage.jsx
   // Ex: [{ ponto_id, periodo_anos, price }]
   const { data, error } = await supabase.functions.invoke('create-order', {
     body: {
       customerData, // { name, email, phone }
       items: cartItems,
+      totalAmount, // Adiciona o valor total ao corpo da requisição
     },
   });
 
