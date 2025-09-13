@@ -2,12 +2,13 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
 import { supabase, createOrder } from '../lib/supabase.js';
 import { PontoInfoWindow } from '../components/PontoInfoWindow.jsx';
+import { ReservationForm } from '../components/ReservationForm.jsx';
 import Header from '../components/Header.jsx';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MapPin, ShoppingCart, Trash2, User, Mail, Phone } from 'lucide-react';
+import { MapPin, ShoppingCart, Trash2 } from 'lucide-react';
 
 // --- Constantes do Componente ---
 const containerStyle = {
@@ -64,7 +65,6 @@ function HomePage() {
   const [selectedMarker, setSelectedMarker] = useState(null);
   const [carrinho, setCarrinho] = useState([]);
   const [showReserveModal, setShowReserveModal] = useState(false);
-  const [reserveData, setReserveData] = useState({ nome: '', email: '', telefone: '' });
   const [filterTagId, setFilterTagId] = useState('all');
   const mapRef = useRef(null);
 
@@ -167,39 +167,21 @@ function HomePage() {
     }));
   };
 
-  // --- Submissão da Reserva ---
-  const handleReserveSubmit = async (e) => {
-    e.preventDefault();
-    if (carrinho.length === 0) return;
-
-    const customerData = {
-      name: reserveData.nome,
-      email: reserveData.email,
-      phone: reserveData.telefone,
-    };
+  // --- Lógica da Reserva ---
+  // Esta função é chamada pelo componente ReservationForm após um pedido ser criado com sucesso.
+  const handleReservationSuccess = () => {
+    // Atualiza o status dos pontos no carrinho para 'reserved' na interface
+    const reservedPointIds = carrinho.map(p => p.id);
+    setPoints(points.map(p => 
+      reservedPointIds.includes(p.id) ? { ...p, status: 'reserved' } : p
+    ));
     
-    const cartItems = carrinho.map(item => ({
-      point_id: item.id,
-      periodo_anos: item.periodo,
-      price: item.preco,
-    }));
-
-    try {
-      const result = await createOrder(customerData, cartItems);
-      console.log('Pedido criado com sucesso!', result);
-
-      const reservedPointIds = carrinho.map(p => p.id);
-      setPoints(points.map(p => reservedPointIds.includes(p.id) ? { ...p, status: 'reserved' } : p));
-      
-      setShowReserveModal(false);
-      setCarrinho([]);
-      setReserveData({ nome: '', email: '', telefone: '' });
-      alert('Pedido de reserva enviado com sucesso! Entraremos em contato em breve.');
-
-    } catch (error) {
-      alert(`Falha ao criar o pedido: ${error.message}`);
-      console.error("Erro detalhado ao chamar createOrder:", error);
-    }
+    // Limpa o carrinho e fecha o modal
+    setCarrinho([]);
+    setShowReserveModal(false);
+    
+    // O componente ReservationForm já exibe uma mensagem de sucesso,
+    // então um 'alert' aqui seria redundante.
   };
   
   // --- Cálculos para Exibição ---
@@ -310,14 +292,16 @@ function HomePage() {
       {showReserveModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
           <Card className="w-full max-w-md mx-4">
-            <CardHeader><CardTitle>Finalizar Reserva</CardTitle><CardDescription>Preencha seus dados para reservar {carrinho.length} ponto(s)</CardDescription></CardHeader>
+            <CardHeader>
+              <CardTitle>Finalizar Reserva</CardTitle>
+              <CardDescription>Preencha seus dados para reservar {carrinho.length} ponto(s). O valor total é de R$ {totalCarrinho.toFixed(2)}.</CardDescription>
+            </CardHeader>
             <CardContent>
-              <form onSubmit={handleReserveSubmit} className="space-y-4">
-                <div><label className="block text-sm font-medium mb-1.5"><User className="h-4 w-4 inline mr-1" />Nome Completo</label><input type="text" required className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" value={reserveData.nome} onChange={(e) => setReserveData({...reserveData, nome: e.target.value})} placeholder="Seu nome completo" /></div>
-                <div><label className="block text-sm font-medium mb-1.5"><Mail className="h-4 w-4 inline mr-1" />E-mail</label><input type="email" required className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" value={reserveData.email} onChange={(e) => setReserveData({...reserveData, email: e.target.value})} placeholder="seu@email.com" /></div>
-                <div><label className="block text-sm font-medium mb-1.5"><Phone className="h-4 w-4 inline mr-1" />Telefone</label><input type="tel" required className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" value={reserveData.telefone} onChange={(e) => setReserveData({...reserveData, telefone: e.target.value})} placeholder="(00) 00000-0000" /></div>
-                <div className="flex gap-3 pt-4"><Button type="button" variant="outline" className="flex-1" onClick={() => setShowReserveModal(false)}>Cancelar</Button><Button type="submit" className="flex-1 bg-green-600 hover:bg-green-700">Confirmar Reserva</Button></div>
-              </form>
+              <ReservationForm 
+                cartItems={carrinho.map(item => ({ point_id: item.id, periodo_anos: item.periodo }))}
+                onClose={() => setShowReserveModal(false)}
+                onReservationSuccess={handleReservationSuccess}
+              />
             </CardContent>
           </Card>
         </div>
