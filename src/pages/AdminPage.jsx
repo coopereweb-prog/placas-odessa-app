@@ -102,31 +102,19 @@ function AdminPage() {
   const handleConfirmVenda = async (order) => {
     if (!window.confirm(`Confirmar a venda para ${order.customer_name}?`)) return;
 
+    // MELHORIA: Usar uma função RPC para garantir que todas as atualizações
+    // (status do pedido e status dos pontos) ocorram de forma atômica (ou tudo ou nada).
+    // Isso evita inconsistências no banco de dados se uma das atualizações falhar.
+    // Você precisará criar a função 'confirm_order_and_update_points' no seu editor SQL do Supabase.
     try {
-      
-      for (const item of order.order_items) {
-        const soldUntil = new Date();
-        soldUntil.setFullYear(soldUntil.getFullYear() + item.periodo_anos);
-        
-        // CORRIGIDO: Status para 'sold'
-        const { error: pointError } = await supabase
-          .from('points')
-          .update({ status: 'sold', sold_until: soldUntil.toISOString() })
-          .eq('id', item.points.id);
+      const { error } = await supabase.rpc('confirm_order_and_update_points', {
+        p_order_id: order.id,
+      });
 
-        if (pointError) throw new Error(`Erro ao atualizar ponto ${item.points.id}: ${pointError.message}`);
-      }
-
-      
-      const { error: orderError } = await supabase
-        .from('orders')
-        .update({ status: 'completed' })
-        .eq('id', order.id);
-
-      if (orderError) throw new Error(`Erro ao atualizar pedido: ${orderError.message}`);
+      if (error) throw new Error(`Erro ao confirmar o pedido: ${error.message}`);
 
       alert('Venda confirmada com sucesso!');
-      fetchOrders(activeTab); 
+      fetchOrders(activeTab);
     } catch (error) {
       console.error(error);
       alert(`Falha ao confirmar venda: ${error.message}`);
@@ -136,27 +124,18 @@ function AdminPage() {
   const handleCancelReserva = async (order) => {
     if (!window.confirm(`Cancelar a reserva para ${order.customer_name}?`)) return;
 
+    // MELHORIA: Usar uma função RPC para garantir atomicidade,
+    // revertendo o status dos pontos e do pedido em uma única transação.
+    // Você precisará criar a função 'cancel_order_and_release_points' no seu editor SQL do Supabase.
     try {
-      
-      const pointIds = order.order_items.map(item => item.points.id);
-      // CORRIGIDO: Status para 'available'
-      const { error: pointError } = await supabase
-        .from('points')
-        .update({ status: 'available' })
-        .in('id', pointIds);
+      const { error } = await supabase.rpc('cancel_order_and_release_points', {
+        p_order_id: order.id,
+      });
 
-      if (pointError) throw new Error(`Erro ao reverter pontos: ${pointError.message}`);
-
-      
-      const { error: orderError } = await supabase
-        .from('orders')
-        .update({ status: 'cancelled' })
-        .eq('id', order.id);
-
-      if (orderError) throw new Error(`Erro ao cancelar pedido: ${orderError.message}`);
+      if (error) throw new Error(`Erro ao cancelar o pedido: ${error.message}`);
 
       alert('Reserva cancelada com sucesso!');
-      fetchOrders(activeTab); 
+      fetchOrders(activeTab);
     } catch (error) {
       console.error(error);
       alert(`Falha ao cancelar reserva: ${error.message}`);
@@ -284,4 +263,3 @@ function AdminPage() {
 }
 
 export default AdminPage;
-
