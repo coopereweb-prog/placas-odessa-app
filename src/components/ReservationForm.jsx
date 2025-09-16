@@ -35,7 +35,11 @@ export function ReservationForm({ cartItems, onClose, onReservationSuccess }) {
     } catch (err) {
       // Captura erros vindos da Edge Function (ex: ponto já reservado)
       // A mensagem de erro da nossa Edge Function vem em `err.context.error`
-      const friendlyMessage = err.context?.error || 'Não foi possível completar sua reserva. Por favor, tente novamente.';
+      const friendlyMessage =
+        err?.context?.error ??
+        err?.message ??
+        err?.error ??
+        'Não foi possível completar sua reserva. Por favor, tente novamente.';
       setError(friendlyMessage);
       console.error('Erro ao criar reserva:', err);
     } finally {

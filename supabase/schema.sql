@@ -114,6 +114,227 @@ $$;
 
 ALTER FUNCTION "public"."update_updated_at_column"() OWNER TO "postgres";
 
+
+CREATE OR REPLACE FUNCTION "public"."create_new_order"(
+    customer_name text,
+    customer_email text,
+    customer_phone text,
+    total_amount numeric,
+    items jsonb
+) RETURNS "uuid"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+  new_order_id uuid;
+  item jsonb;
+  point_uuid uuid;
+  periodo integer;
+  price numeric;
+  point_status public.point_status;
+  price_2y numeric;
+  price_3y numeric;
+  calculated_total numeric := 0;
+BEGIN
+  IF items IS NULL OR jsonb_typeof(items) <> 'array' OR jsonb_array_length(items) = 0 THEN
+    RAISE EXCEPTION 'Itens do pedido sao obrigatorios';
+  END IF;
+
+  FOR item IN SELECT * FROM jsonb_array_elements(items)
+  LOOP
+    point_uuid := (item->>'point_id')::uuid;
+    IF point_uuid IS NULL THEN
+      RAISE EXCEPTION 'Identificador do ponto ausente';
+    END IF;
+
+    SELECT status, price_2y, price_3y
+    INTO point_status, price_2y, price_3y
+    FROM public.points
+    WHERE id = point_uuid
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Ponto % nao encontrado', point_uuid;
+    END IF;
+
+    IF point_status <> 'available' THEN
+      RAISE EXCEPTION 'Ponto % nao esta disponivel', point_uuid;
+    END IF;
+
+    periodo := (item->>'periodo_anos')::int;
+    price := (item->>'price')::numeric;
+
+    IF periodo NOT IN (2, 3) THEN
+      RAISE EXCEPTION 'Periodo invalido para o ponto %', point_uuid;
+    END IF;
+
+    IF periodo = 2 THEN
+      IF price_2y IS NULL THEN
+        RAISE EXCEPTION 'Preco para 2 anos nao configurado para o ponto %', point_uuid;
+      END IF;
+      IF price IS NULL OR price <> price_2y THEN
+        RAISE EXCEPTION 'Preco informado nao confere para o ponto %', point_uuid;
+      END IF;
+      calculated_total := calculated_total + price_2y;
+    ELSE
+      IF price_3y IS NULL THEN
+        RAISE EXCEPTION 'Preco para 3 anos nao configurado para o ponto %', point_uuid;
+      END IF;
+      IF price IS NULL OR price <> price_3y THEN
+        RAISE EXCEPTION 'Preco informado nao confere para o ponto %', point_uuid;
+      END IF;
+      calculated_total := calculated_total + price_3y;
+    END IF;
+  END LOOP;
+
+  IF total_amount IS NULL OR total_amount <> calculated_total THEN
+    RAISE EXCEPTION 'Valor total do pedido nao confere';
+  END IF;
+
+  INSERT INTO public.orders (customer_name, customer_email, customer_phone, total_amount, status)
+  VALUES (customer_name, customer_email, customer_phone, total_amount, 'pending')
+  RETURNING id INTO new_order_id;
+
+  FOR item IN SELECT * FROM jsonb_array_elements(items)
+  LOOP
+    point_uuid := (item->>'point_id')::uuid;
+    periodo := (item->>'periodo_anos')::int;
+    price := (item->>'price')::numeric;
+
+    INSERT INTO public.order_items (order_id, point_id, periodo_anos, price)
+    VALUES (new_order_id, point_uuid, periodo, price);
+
+    UPDATE public.points
+    SET status = 'reserved',
+        reserved_until = NOW() + INTERVAL '48 hours',
+        sold_until = NULL,
+        updated_at = NOW()
+    WHERE id = point_uuid;
+  END LOOP;
+
+  RETURN new_order_id;
+END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION "public"."confirm_order_and_update_points"(p_order_id "uuid") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+  order_status text;
+  item_record RECORD;
+  point_status public.point_status;
+BEGIN
+  SELECT status
+  INTO order_status
+  FROM public.orders
+  WHERE id = p_order_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Pedido % nao encontrado', p_order_id;
+  END IF;
+
+  IF order_status <> 'pending' THEN
+    RAISE EXCEPTION 'Somente pedidos pendentes podem ser confirmados';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM public.order_items WHERE order_id = p_order_id) THEN
+    RAISE EXCEPTION 'Pedido % nao possui itens', p_order_id;
+  END IF;
+
+  FOR item_record IN
+    SELECT oi.point_id, oi.periodo_anos
+    FROM public.order_items oi
+    WHERE oi.order_id = p_order_id
+  LOOP
+    SELECT status
+    INTO point_status
+    FROM public.points
+    WHERE id = item_record.point_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Ponto % nao encontrado', item_record.point_id;
+    END IF;
+
+    IF point_status <> 'reserved' THEN
+      RAISE EXCEPTION 'Ponto % nao esta reservado', item_record.point_id;
+    END IF;
+
+    UPDATE public.points
+    SET status = 'sold',
+        sold_until = NOW() + make_interval(years => item_record.periodo_anos),
+        reserved_until = NULL,
+        updated_at = NOW()
+    WHERE id = item_record.point_id;
+  END LOOP;
+
+  UPDATE public.orders
+  SET status = 'completed',
+      updated_at = NOW()
+  WHERE id = p_order_id;
+END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION "public"."revert_order_and_release_points"(p_order_id "uuid") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+  order_status text;
+  item_record RECORD;
+  point_status public.point_status;
+BEGIN
+  SELECT status
+  INTO order_status
+  FROM public.orders
+  WHERE id = p_order_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Pedido % nao encontrado', p_order_id;
+  END IF;
+
+  IF order_status <> 'pending' THEN
+    RAISE EXCEPTION 'Somente pedidos pendentes podem ser cancelados';
+  END IF;
+
+  FOR item_record IN
+    SELECT oi.point_id
+    FROM public.order_items oi
+    WHERE oi.order_id = p_order_id
+  LOOP
+    SELECT status
+    INTO point_status
+    FROM public.points
+    WHERE id = item_record.point_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Ponto % nao encontrado', item_record.point_id;
+    END IF;
+
+    IF point_status <> 'reserved' THEN
+      RAISE EXCEPTION 'Ponto % nao esta reservado', item_record.point_id;
+    END IF;
+
+    UPDATE public.points
+    SET status = 'available',
+        reserved_until = NULL,
+        updated_at = NOW()
+    WHERE id = item_record.point_id;
+  END LOOP;
+
+  UPDATE public.orders
+  SET status = 'cancelled',
+      updated_at = NOW()
+  WHERE id = p_order_id;
+END;
+$$;
+
 SET default_tablespace = '';
 
 SET default_table_access_method = "heap";
@@ -123,6 +344,7 @@ CREATE TABLE IF NOT EXISTS "public"."order_items" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "order_id" "uuid",
     "point_id" "uuid",
+    "periodo_anos" integer NOT NULL,
     "price" numeric(10,2) NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
@@ -135,6 +357,7 @@ CREATE TABLE IF NOT EXISTS "public"."orders" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid",
     "total_amount" numeric(10,2) DEFAULT '0'::numeric NOT NULL,
+    "payment_receipt_url" "text",
     "status" "text" DEFAULT 'pending'::"text",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
@@ -484,6 +707,15 @@ GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "service_role";
 
 
+
+GRANT ALL ON FUNCTION "public"."confirm_order_and_update_points"("uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."confirm_order_and_update_points"("uuid") TO "service_role";
+
+GRANT ALL ON FUNCTION "public"."create_new_order"(text, text, text, numeric, jsonb) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_new_order"(text, text, text, numeric, jsonb) TO "service_role";
+
+GRANT ALL ON FUNCTION "public"."revert_order_and_release_points"("uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."revert_order_and_release_points"("uuid") TO "service_role";
 
 
 

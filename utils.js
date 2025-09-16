@@ -1,4 +1,4 @@
-import { clsx } from "clsx"
+﻿import { clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
 export function cn(...inputs) {
@@ -7,9 +7,9 @@ export function cn(...inputs) {
 
 export const getStatusBadge = (status) => {
   const statusConfig = {
-    disponivel: { label: 'Disponível', className: 'bg-green-500 hover:bg-green-600' },
-    reservado: { label: 'Reservado', className: 'bg-yellow-500 hover:bg-yellow-600' },
-    vendido: { label: 'Vendido', className: 'bg-red-500 hover:bg-red-600' }
+    available: { label: 'Disponível', className: 'bg-green-500 hover:bg-green-600' },
+    reserved: { label: 'Reservado', className: 'bg-yellow-500 hover:bg-yellow-600' },
+    sold: { label: 'Contratado', className: 'bg-red-500 hover:bg-red-600' },
   };
-  return statusConfig[status] || statusConfig.disponivel;
+  return statusConfig[status] || statusConfig.available;
 };

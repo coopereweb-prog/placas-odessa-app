@@ -1,13 +1,20 @@
-import { createClient } from '@supabase/supabase-js'
+﻿import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/+$/, '')
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Variáveis de ambiente do Supabase (VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY) não estão definidas.");
+  throw new Error('Variáveis de ambiente do Supabase (VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY) não estão definidas.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: {
+    headers: {
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+    },
+  },
+})
 
 // Funções para gerenciar pontos
 export const getPoints = async () => {
@@ -16,12 +23,12 @@ export const getPoints = async () => {
     .from('points')
     .select('*')
     .order('id')
-  
+
   if (error) {
     console.error('Erro ao buscar pontos:', error)
     return []
   }
-  
+
   return data
 }
 
@@ -30,41 +37,41 @@ export const updatePointStatus = async (pointId, status, dadosCliente = null) =>
     status,
     updated_at: new Date().toISOString()
   }
-  
+
   if (dadosCliente) {
     updateData.dados_cliente = dadosCliente
     updateData.reservado_em = new Date().toISOString()
   }
-  
+
   // CORRIGIDO: Nome da tabela para 'points'
   const { data, error } = await supabase
     .from('points')
     .update(updateData)
     .eq('id', pointId)
     .select()
-  
+
   if (error) {
     console.error('Erro ao atualizar ponto:', error)
     return null
   }
-  
+
   return data[0]
 }
 
 export const createOrder = async (customerData, cartItems) => {
   const { data, error } = await supabase.functions.invoke('create-order', {
     body: {
-      customerData, 
+      customerData,
       items: cartItems,
     },
-  });
+  })
 
   if (error) {
-    console.error('Erro ao invocar a Edge Function create-order:', error);
-    throw error;
+    console.error('Erro ao invocar a Edge Function create-order:', error)
+    throw error
   }
 
-  return data;
+  return data
 }
 
 // Função para upload de imagens
@@ -72,12 +79,12 @@ export const uploadImagem = async (file, path) => {
   const { data, error } = await supabase.storage
     .from('placas-fotos')
     .upload(path, file)
-  
+
   if (error) {
     console.error('Erro ao fazer upload:', error)
     return null
   }
-  
+
   return data
 }
 
@@ -85,7 +92,6 @@ export const getImagemUrl = (path) => {
   const { data } = supabase.storage
     .from('placas-fotos')
     .getPublicUrl(path)
-  
+
   return data.publicUrl
 }
-
